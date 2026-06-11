@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mexican Train Live</title>
+    <script src="https://tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        .domino { background: #fefefe; color: #111; font-weight: bold; border-radius: 6px; border: 2px solid #ccc; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
+        .domino:hover { transform: translateY(-4px); border-color: #fbbf24; }
+        .track-stone { background: #fff; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 14px; font-weight: bold; border: 1px solid #444; }
+    </style>
+</head>
+<body class="bg-slate-800 text-white min-h-screen font-sans">
+
+    <!-- LOBBY -->
+    <div id="lobby" class="max-w-md mx-auto my-20 bg-slate-900 p-8 rounded-xl shadow-2xl">
+        <h1 class="text-3xl font-black mb-6 text-center text-yellow-400">🚂 MEXICAN TRAIN</h1>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-semibold mb-1">Jouw Naam</label>
+                <input id="nameInp" type="text" class="w-full p-2.5 rounded bg-slate-700 text-white border border-slate-600 focus:outline-none focus:border-yellow-400">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1">Maximale Steen (Aantal ogen)</label>
+                <select id="maxStoneInp" class="w-full p-2.5 rounded bg-slate-700 text-white border border-slate-600">
+                    <option value="12">Dubbel 12 (91 stenen)</option>
+                    <option value="15">Dubbel 15 (136 stenen)</option>
+                </select>
+            </div>
+            <button onclick="join()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold p-3 rounded transition">Deelnemen</button>
+            <button onclick="start()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-3 rounded transition">Spel Starten</button>
+        </div>
+        <div class="mt-6 border-t border-slate-700 pt-4">
+            <h3 class="text-sm font-bold text-slate-400 mb-2">Wachtruimte:</h3>
+            <ul id="playerList" class="list-disc list-inside text-slate-300"></ul>
+        </div>
+    </div>
+
+    <!-- SPEELVELD -->
+    <div id="board" class="hidden p-4 max-w-6xl mx-auto pb-40">
+        <div id="doubleWarningBanner" class="hidden bg-red-600 text-white font-black p-3 rounded-xl mb-4 text-center animate-pulse shadow-lg text-sm">
+            ⚠️ VERPLICHTING: Er ligt een open dubbelsteen! Je moet hier verplicht aanleggen.
+        </div>
+
+        <div class="flex justify-between items-center mb-6 bg-slate-900 p-4 rounded-xl shadow border border-slate-700">
+            <div>
+                <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-bold">RONDE <span id="roundNumberLabel">1</span></span>
+                <h2 class="text-xl font-bold mt-1">Startsteen: <span id="centerStone" class="bg-yellow-400 text-slate-950 px-2 py-0.5 rounded font-black"></span></h2>
+                <p class="text-xs text-slate-400 mt-1">Pot (Boneyard): <span id="boneyardCount" class="font-bold text-white"></span> stenen over</p>
+            </div>
+            <div id="turnBox" class="text-right">
+                <span class="text-sm text-slate-400">Aan de beurt:</span>
+                <div id="activePlayer" class="text-xl font-black text-yellow-400">-</div>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <div onclick="selectTrain('mexican')" id="mexicanTrackCard" class="bg-slate-900 p-4 rounded-xl border-2 border-transparent cursor-pointer transition">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-emerald-400 text-lg">🚂 Algemene Mexican Train</span>
+                    <span class="text-xs bg-emerald-950 text-emerald-300 px-2 py-1 rounded">Altijd Open</span>
+                </div>
+                <div id="mexicanTrack" class="flex gap-1.5 overflow-x-auto p-2 bg-slate-950 rounded min-h-[44px] items-center"></div>
+            </div>
+            <div class="grid grid-cols-1 gap-3" id="playerTracks"></div>
+        </div>
+
+        <!-- BEDIENING & HAND -->
+        <div class="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 p-4 shadow-2xl">
+            <div class="max-w-6xl mx-auto flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div>
+                    <div class="text-xs text-slate-400 mb-1">Geselecteerd: <span id="selectedStoneLabel" class="text-yellow-400 font-bold">-</span> | <span id="drawStatusLabel" class="text-blue-400">Beurt laden...</span></div>
+                    <div class="flex gap-2">
+                        <button id="drawBtn" onclick="draw()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-bold text-sm disabled:opacity-30">Pak Steen</button>
+                        <button id="passBtn" onclick="pass()" class="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded font-bold text-sm disabled:opacity-30">Pas Turn</button>
+                    </div>
+                </div>
+                <div class="w-full overflow-x-auto flex gap-2 p-2 bg-slate-900 rounded-lg" id="myHand"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
