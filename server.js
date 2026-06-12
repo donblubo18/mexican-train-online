@@ -10,7 +10,6 @@ app.use(express.static('public'));
 
 let game = {
     players: [],
-    spectators: [],
     maxStone: 12,
     boneyard: [],
     mexicanTrain: [],
@@ -39,30 +38,16 @@ function getTail(train, startNumber) {
     return train[train.length - 1]; 
 }
 
-// Officiele toernooiregels voor aantal startstenen per speler
-function getOfficialStoneCount(playerCount, maxStone) {
-    if (maxStone <= 12) {
-        if (playerCount <= 4) return 15;
-        if (playerCount <= 6) return 12;
-        return 11; // 7 tot 8 spelers
-    } else {
-        if (playerCount <= 4) return 15;
-        if (playerCount <= 6) return 13;
-        return 11; // Bij sets groter dan 12 corrigeren we dit conform toernooirichtlijnen
-    }
-}
-
 function initRound() {
     game.boneyard = generateDeck(game.maxStone);
     game.mexicanTrain = [];
     game.currentTurn = (game.currentRound - 1) % game.players.length;
     game.hasDrawn = false;
     game.requiredDouble = { active: false, value: null, targetId: null };
+    game.boneyard = game.boneyard.filter(s => !(s === game.startNumber && s === game.startNumber));
 
-    // Haal start-dubbelsteen uit de pot
-    game.boneyard = game.boneyard.filter(s => !(s[0] === game.startNumber && s[1] === game.startNumber));
-
-    const stonesPerPlayer = getOfficialStoneCount(game.players.length, game.maxStone);
+    let stonesPerPlayer = game.maxStone >= 15 ? 13 : 11;
+    if (game.players.length >= 7) stonesPerPlayer -= 2;
 
     game.players.forEach(p => {
         game.hands[p.id] = game.boneyard.splice(0, stonesPerPlayer);
@@ -71,122 +56,83 @@ function initRound() {
     });
 }
 
-function getSanitizedGame(socketId) {
-    let copy = JSON.parse(JSON.stringify(game));
-    let isSpectator = game.spectators.includes(socketId);
-    
-    // Cruciale bugfix: Verberg de inhoud van andere spelers hun handen!
-    // Alleen je eigen hand is zichtbaar, tenzij je toeschouwer bent (dan zie je niets)
-    for (let id in copy.hands) {
-        if (isSpectator || id !== socketId) {
-            copy.hands[id] = copy.hands[id].map(() => ['?', '?']);
-        }
+function checkSoundTriggers(oldGame, newGame) {
+    // 1. Check of iemands beurt is veranderd
+    if (oldGame.currentTurn !== newGame.currentTurn) {
+        io.emit('playSound', 'turn');
     }
-    return copy;
-}
-
-function broadcastState() {
-    io.sockets.sockets.forEach((socket) => {
-        socket.emit('updateGame', getSanitizedGame(socket.id));
+    // 2. Check of een trein nieuw geopend is
+    newGame.players.forEach(p => {
+        const oldP = oldGame.players.find(x => x.id === p.id);
+        if (p.isOpen && (!oldP || !oldP.isOpen)) {
+            io.emit('playSound', 'trainOpen');
+        }
+        // 3. Check of iemand zojuist op exact 1 steen is gekomen
+        const newHandLen = newGame.hands[p.id] ? newGame.hands[p.id].length : 0;
+        const oldHandLen = oldGame.hands[p.id] ? oldGame.hands[p.id].length : 0;
+        if (newHandLen === 1 && oldHandLen > 1) {
+            io.emit('playSound', 'knock');
+        }
     });
 }
 
 io.on('connection', (socket) => {
     socket.on('joinGame', (name) => {
-        if (game.started) return socket.emit('errorMsg', 'Spel is al gestart. Je kunt alleen nog meekijken.');
-        
-        // Bugfix: Blokkeer als deze socket al in het spel zit
-        if (game.players.some(p => p.id === socket.id) || game.spectators.includes(socket.id)) {
-            return socket.emit('errorMsg', 'Je doet al mee!');
-        }
-
-        if (game.players.length >= 8) {
-            game.spectators.push(socket.id);
-            socket.emit('errorMsg', 'Het spel is vol (max 8). Je bent nu toeschouwer.');
-        } else {
-            game.players.push({ id: socket.id, name: name, isOpen: false, train: [], totalScore: 0 });
-        }
-        broadcastState();
-    });
-
-    socket.on('joinAsSpectator', () => {
-        if (game.players.some(p => p.id === socket.id) || game.spectators.includes(socket.id)) {
-            return socket.emit('errorMsg', 'Je zit al in de sessie!');
-        }
-        game.spectators.push(socket.id);
-        broadcastState();
+        if (game.started) return socket.emit('errorMsg', 'Spel is al begonnen.');
+        if (game.players.length >= 8) return socket.emit('errorMsg', 'Spel is vol.');
+        game.players.push({ id: socket.id, name: name, isOpen: false, train: [], totalScore: 0 });
+        io.emit('updateGame', game);
     });
 
     socket.on('startGame', (maxStone) => {
-        if (game.started) return;
-        let parsed = parseInt(maxStone);
-        if (isNaN(parsed) || parsed < 0) return socket.emit('errorMsg', 'Vul een geldig getal in!');
-
-        game.maxStone = parsed;
+        game.maxStone = parseInt(maxStone);
         game.startNumber = game.maxStone;
         game.currentRound = 1;
         game.gameOver = false;
         game.started = true;
-        
         game.players.forEach(p => p.totalScore = 0);
         initRound();
-        
-        io.emit('gameStarted');
-        broadcastState();
-    });
-
-    socket.on('reorderHand', (newHand) => {
-        if (!game.started || !game.hands[socket.id]) return;
-        // Valideer of de speler niet stiekem stenen verzint tijdens het slepen
-        if (newHand.length === game.hands[socket.id].length) {
-            game.hands[socket.id] = newHand;
-        }
+        io.emit('gameStarted', game);
     });
 
     socket.on('drawStone', () => {
-        if (!game.started || game.players[game.currentTurn].id !== socket.id) return;
+        if (game.players[game.currentTurn].id !== socket.id) return;
         if (game.hasDrawn) return socket.emit('errorMsg', 'Je hebt al gepakt!');
-
         if (game.boneyard.length > 0) {
             const stone = game.boneyard.pop();
             game.hands[socket.id].push(stone);
             game.hasDrawn = true;
-            broadcastState();
+            io.emit('updateGame', game);
         } else {
             game.hasDrawn = true;
-            socket.emit('errorMsg', 'De pot is leeg! Je mag passen.');
-            broadcastState();
+            io.emit('updateGame', game);
         }
     });
 
     socket.on('passTurn', () => {
-        if (!game.started || game.players[game.currentTurn].id !== socket.id) return;
+        if (game.players[game.currentTurn].id !== socket.id) return;
         if (!game.hasDrawn) return socket.emit('errorMsg', 'Eerst pakken!');
         
+        const oldGameCopy = JSON.parse(JSON.stringify(game));
         const player = game.players.find(p => p.id === socket.id);
-        const wasOpen = player.isOpen;
         player.isOpen = true;
-
-        // Geluid triggeren als een trein open gaat
-        if (!wasOpen) io.emit('soundTrigger', 'train');
-
         game.hasDrawn = false;
         game.currentTurn = (game.currentTurn + 1) % game.players.length;
-        
-        io.emit('soundTrigger', 'ping');
-        broadcastState();
+
+        checkSoundTriggers(oldGameCopy, game);
+        io.emit('updateGame', game);
     });
 
     socket.on('playStone', ({ stoneIndex, targetId }) => {
         const playerId = socket.id;
-        if (!game.started || game.players[game.currentTurn].id !== playerId) return;
+        if (game.players[game.currentTurn].id !== playerId) return;
 
         const hand = game.hands[playerId];
         let stone = hand[stoneIndex];
         if (!stone) return;
 
         if (game.requiredDouble.active && targetId !== game.requiredDouble.targetId) {
-            return socket.emit('errorMsg', `Verplicht! Leg aan op de gemarkeerde dubbel-trein.`);
+            return socket.emit('errorMsg', `Verplicht! Leg aan op de gemarkeerde dubbel.`);
         }
 
         let targetTrain;
@@ -202,15 +148,15 @@ io.on('connection', (socket) => {
         }
 
         let tail = getTail(targetTrain, game.startNumber);
-        
-        if (stone[0] === tail) {
-            // Sluit direct aan
-        } else if (stone[1] === tail) {
-            stone = [stone[1], stone[0]]; // Draai om
+        if (stone === tail) {
+            // OK
+        } else if (stone === tail) {
+            stone = [stone, stone];
         } else {
             return socket.emit('errorMsg', 'Steen sluit niet aan!');
         }
 
+        const oldGameCopy = JSON.parse(JSON.stringify(game));
         targetTrain.push(stone);
         hand.splice(stoneIndex, 1);
 
@@ -218,20 +164,13 @@ io.on('connection', (socket) => {
             game.players.find(p => p.id === playerId).isOpen = false;
         }
 
-        // Klop geluid sturen als iemand nog maar 1 steen heeft
-        if (hand.length === 1) {
-            io.emit('soundTrigger', 'knock');
-        }
-
         if (hand.length === 0) {
             game.players.forEach(p => {
                 const pHand = game.hands[p.id] || [];
-                const penalty = pHand.reduce((sum, s) => sum + s[0] + s[1], 0);
+                const penalty = pHand.reduce((sum, s) => sum + s + s, 0);
                 p.totalScore += penalty;
             });
-
             const winnerName = game.players[game.currentTurn].name;
-
             if (game.startNumber > 0) {
                 game.startNumber -= 1;
                 game.currentRound += 1;
@@ -241,36 +180,40 @@ io.on('connection', (socket) => {
                 game.started = false;
                 game.gameOver = true;
                 const sorted = [...game.players].sort((a,b) => a.totalScore - b.totalScore);
-                io.emit('roundEnded', { winner: winnerName, nextRoundReady: false, champion: sorted[0].name, game: game });
+                io.emit('roundEnded', { winner: winnerName, nextRoundReady: false, champion: sorted.name, game: game });
             }
-            broadcastState();
             return;
         }
 
-        const isDouble = (stone[0] === stone[1]);
-
+        const isDouble = (stone === stone);
         if (isDouble) {
-            game.requiredDouble = { active: true, value: stone[0], targetId: targetId };
+            game.requiredDouble = { active: true, value: stone, targetId: targetId };
             game.hasDrawn = false;
-            socket.emit('errorMsg', 'Dubbel gelegd! Extra beurt om deze te sluiten.');
         } else {
             game.requiredDouble = { active: false, value: null, targetId: null };
             game.hasDrawn = false;
             game.currentTurn = (game.currentTurn + 1) % game.players.length;
-            io.emit('soundTrigger', 'ping');
         }
 
-        broadcastState();
+        checkSoundTriggers(oldGameCopy, game);
+        io.emit('updateGame', game);
+    });
+
+    socket.on('reorderHand', ({ fromIndex, toIndex }) => {
+        const hand = game.hands[socket.id];
+        if (!hand) return;
+        const [movedStone] = hand.splice(fromIndex, 1);
+        hand.splice(toIndex, 0, movedStone);
+        io.emit('updateGame', game);
     });
 
     socket.on('disconnect', () => {
         game.players = game.players.filter(p => p.id !== socket.id);
-        game.spectators = game.spectators.filter(id => id !== socket.id);
         delete game.hands[socket.id];
         if (game.players.length === 0) game.started = false;
-        broadcastState();
+        io.emit('updateGame', game);
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server draait op poort ${PORT}`));
+server.listen(PORT, () => console.log(`Server gestart op poort ${PORT}`));
