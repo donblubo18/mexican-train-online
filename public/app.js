@@ -3,7 +3,6 @@ let selectedStoneIndex = null;
 let selectedTrainId = null;
 let draggedStoneIndex = null;
 
-// Geluidseffecten
 const audioTurn = new Audio('https://mixkit.co'); 
 const audioTrainOpen = new Audio('https://mixkit.co'); 
 const audioKnock = new Audio('https://mixkit.co'); 
@@ -131,7 +130,7 @@ socket.on('updateGame', (game) => {
         const handLength = game.hands[p.id] ? game.hands[p.id].length : 0;
 
         const pBox = document.createElement("div");
-        pBox.className = "px-4 py-2 rounded-lg border text-xs flex flex-col items-center transition min-w-[110px] " + 
+        pBox.className = "px-4 py-2 rounded-lg border text-xs flex flex-col items-center transition min-w-[110px] flex-shrink-0 " + 
             (isCurrent ? "bg-yellow-500/20 border-yellow-400 font-bold shadow-md text-yellow-300 animate-pulse" : "bg-slate-800 border-slate-700 text-slate-300");
 
         const nameSpan = document.createElement("span");
@@ -154,19 +153,24 @@ socket.on('updateGame', (game) => {
         banner.classList.add('hidden');
     }
 
-    // 2. MEXICAN TRAIN VERTICAAL KOLOM RENDEREN
+    // 2. MEXICAN TRAIN KOLOM RENDEREN
     const isMexDouble = game.requiredDouble && game.requiredDouble.active && game.requiredDouble.targetId === 'mexican';
     const mexTrackCard = document.getElementById('mexicanTrackCard');
-    mexTrackCard.className = 'bg-slate-900 p-3 rounded-xl border-2 cursor-pointer transition flex flex-col min-w-[140px] max-h-full h-full ' + 
+    mexTrackCard.className = 'bg-slate-900 p-3 rounded-xl border-2 cursor-pointer transition flex flex-col min-w-[140px] max-h-full h-full flex-shrink-0 ' + 
         (isMexDouble ? 'border-red-500 bg-red-950/20 animate-pulse' : 'border-transparent hover:border-yellow-500');
     
     const mexTrack = document.getElementById('mexicanTrack');
     mexTrack.innerHTML = "";
     game.mexicanTrain.forEach((s) => {
-        const span = document.createElement("div");
-        span.className = "track-stone my-1 mx-auto shadow flex flex-col items-center justify-center";
-        span.innerText = s[0] + "\n" + s[1]; // Correct uit elkaar gehaald
-        mexTrack.appendChild(span);
+        const stoneBox = document.createElement("div");
+        stoneBox.className = "track-stone my-1 mx-auto shadow flex flex-col items-center justify-center p-1.5";
+        
+        const top = document.createElement("span"); top.innerText = s[0];
+        const line = document.createElement("div"); line.className = "w-full border-t border-gray-400 my-0.5";
+        const bot = document.createElement("span"); bot.innerText = s[1];
+        
+        stoneBox.appendChild(top); stoneBox.appendChild(line); stoneBox.appendChild(bot);
+        mexTrack.appendChild(stoneBox);
     });
 
     // 3. VERTICALE SPELERSTREINEN KOLOMMEN RENDEREN
@@ -181,7 +185,7 @@ socket.on('updateGame', (game) => {
         if (isTargetDouble) borderClass = 'border-red-500 bg-red-950/20 animate-pulse';
 
         const colDiv = document.createElement("div");
-        colDiv.className = "bg-slate-900 p-3 rounded-xl border-2 flex flex-col min-w-[140px] max-h-full h-full cursor-pointer transition " + borderClass + " hover:border-blue-500";
+        colDiv.className = "bg-slate-900 p-3 rounded-xl border-2 flex flex-col min-w-[140px] max-h-full h-full cursor-pointer transition flex-shrink-0 " + borderClass + " hover:border-blue-500";
         colDiv.onclick = () => selectTrain(p.id);
 
         const colHeader = document.createElement("div");
@@ -211,15 +215,20 @@ socket.on('updateGame', (game) => {
         }
 
         const stonesScrollDiv = document.createElement("div");
-        stonesScrollDiv.className = "flex flex-col gap-2 overflow-y-auto no-scrollbar items-center flex-1 py-1 min-h-0";
+        stonesScrollDiv.className = "flex flex-col gap-2 overflow-y-auto no-scrollbar items-center flex-1 py-1 min-h-0 w-full";
 
         p.train.forEach((s) => {
-            const stoneSpan = document.createElement("div");
-            stoneSpan.className = "track-stone shadow flex flex-col items-center justify-center";
-            stoneSpan.innerText = s[0] + "\n" + s[1]; // Correct uit elkaar gehaald
-            stonesScrollDiv.appendChild(stoneSpan);
+            const stoneBox = document.createElement("div");
+            stoneBox.className = "track-stone shadow flex flex-col items-center justify-center p-1.5 mx-auto";
+            
+            const top = document.createElement("span"); top.innerText = s[0];
+            const line = document.createElement("div"); line.className = "w-full border-t border-gray-400 my-0.5";
+            const bot = document.createElement("span"); bot.innerText = s[1];   
+            stoneBox.appendChild(top); 
+            stoneBox.appendChild(line); 
+            stoneBox.appendChild(bot);
+            stonesScrollDiv.appendChild(stoneBox);
         });
-
         colDiv.appendChild(colHeader);
         colDiv.appendChild(stonesScrollDiv);
         tracksContainer.appendChild(colDiv);
@@ -229,6 +238,7 @@ socket.on('updateGame', (game) => {
     const drawBtn = document.getElementById('drawBtn');
     const passBtn = document.getElementById('passBtn');
     const drawStatusLabel = document.getElementById('drawStatusLabel');
+
     const isMyTurn = game.players[game.currentTurn]?.id === socket.id;
     const isSpectator = game.spectators && game.spectators.some(s => s.id === socket.id);
 
@@ -269,43 +279,43 @@ socket.on('updateGame', (game) => {
     } else {
         myHand.forEach((s, idx) => {
             const btn = document.createElement("button");
-            // Tip: Voeg h-[90px] en justify-between toe voor een betere domino layout
             btn.className = "domino p-2 min-w-[55px] max-w-[55px] flex flex-col items-center justify-center text-md cursor-grab active:cursor-grabbing flex-shrink-0 shadow";
             btn.draggable = true;
             btn.ondragstart = (e) => handleDragStart(e, idx);
             btn.ondragover = (e) => handleDragOver(e);
             btn.ondrop = (e) => handleDrop(e, idx);
-            btn.onclick = () => selectStone(idx, s[0] + "|" + s[1]); // Toont nette string bij selectie
+            btn.onclick = () => selectStone(idx, s[0] + "|" + s[1]);
 
-            const topSpan = document.createElement("span");
-            topSpan.innerText = s[0]; // Bovenste getal
+            const topSpan = document.createElement("span"); 
+            topSpan.innerText = s[0];
 
-            const line = document.createElement("div");
+            const line = document.createElement("div"); 
             line.className = "w-full border-t border-gray-400 my-0.5";
 
-            const botSpan = document.createElement("span");
-            botSpan.innerText = s[1]; // Onderste getal
+            const botSpan = document.createElement("span"); 
+            botSpan.innerText = s[1];
 
-            btn.appendChild(topSpan);
-            btn.appendChild(line);
+            btn.appendChild(topSpan); 
+            btn.appendChild(line); 
             btn.appendChild(botSpan);
             handDiv.appendChild(btn);
         });
     }
-});
+    // Hier sluit waarschijnlijk de hoofd-luisteraar (bijv. socket.on('updateBoard', ...))
+    });
 
-socket.on('gameStarted', (game) => { 
-    socket.emit('updateGame', game); 
-});
+    socket.on('gameStarted', (game) => { 
+        socket.emit('updateGame', game); 
+    });
 
-socket.on('roundEnded', ({ winner, nextRoundReady, champion, game }) => {
-    if (nextRoundReady) {
-        alert("Ronde voorbij! " + winner + " heeft uitgespeeld.\n\nVolgende ronde start met Dubbel " + game.startNumber + ".");
-    } else {
-        alert("HET SPEL IS FINALE AFGELOPEN!\n\n🏆 WINNAAR: " + champion + "!");
-        sessionStorage.removeItem('mexicanTrainJoined');
-        document.getElementById('board').classList.add('hidden');
-        document.getElementById('lobby').classList.remove('hidden');
-    }
-    socket.emit('updateGame', game);
+    socket.on('roundEnded', ({ winner, nextRoundReady, champion, game }) => {
+        if (nextRoundReady) {
+            alert("Ronde voorbij! " + winner + " heeft uitgespeeld.\n\nVolgende ronde start met Dubbel " + game.startNumber + ".");
+        } else {
+            alert("HET SPEL IS FINALE AFGELOPEN!\n\n🏆 WINNAAR: " + champion + "!");
+            sessionStorage.removeItem('mexicanTrainJoined');
+            document.getElementById('board').classList.add('hidden');
+            document.getElementById('lobby').classList.remove('hidden');
+        }
+        socket.emit('updateGame', game);
 });
