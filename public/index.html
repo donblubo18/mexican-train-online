@@ -42,9 +42,9 @@
     <!-- MAIN GAME BOARD -->
     <div id="board" class="hidden flex-1 flex flex-col min-h-0">
         
-        <!-- 1. BOVENSTE BALK: SPELERS STATUS NAAST ELKAAR -->
+        <!-- 1. BOVENSTE BALK: SPELERS STATUS ALTIJD NAAST ELKAAR -->
         <header class="bg-slate-900 border-b border-slate-700 p-3 shadow-md flex-shrink-0">
-            <div id="playerHeaderRow" class="flex gap-3 overflow-x-auto no-scrollbar justify-center items-center">
+            <div id="playerHeaderRow" class="flex flex-row flex-nowrap gap-3 overflow-x-auto no-scrollbar justify-start md:justify-center items-center w-full">
                 <!-- Dynamisch gevuld via app.js -->
             </div>
             <div id="gameStatusSummary" class="text-center text-xs text-slate-400 mt-2 flex justify-center gap-6">
@@ -59,11 +59,11 @@
             ⚠️ VERPLICHTING: Er ligt een open dubbelsteen! Je moet hier eerst verplicht aanleggen.
         </div>
 
-        <!-- 2. MIDDENVELD: VERTICALE KOLOMMEN NAAST ELKAAR -->
-        <main class="flex-1 flex gap-4 p-4 overflow-x-auto overflow-y-hidden bg-slate-850 items-start justify-start min-h-0">
+        <!-- 2. MIDDENVELD: VERTICALE KOLOMMEN DIE HORIZONTAAL NAAST ELKAAR STAAN -->
+        <main class="flex-1 flex flex-row flex-nowrap gap-4 p-4 overflow-x-auto overflow-y-hidden bg-slate-850 items-start justify-start min-h-0 w-full">
             
             <!-- Algemene Mexican Train Kolom -->
-            <div onclick="selectTrain('mexican')" id="mexicanTrackCard" class="bg-slate-900 p-3 rounded-xl border-2 border-transparent cursor-pointer transition flex flex-col min-w-[140px] max-h-full h-full shadow-lg">
+            <div onclick="selectTrain('mexican')" id="mexicanTrackCard" class="bg-slate-900 p-3 rounded-xl border-2 border-transparent cursor-pointer transition flex flex-col min-w-[140px] max-h-full h-full shadow-lg flex-shrink-0">
                 <div class="text-center font-bold text-emerald-400 text-sm border-b border-slate-700 pb-2 mb-2 flex-shrink-0">
                     🚂 Mexican Train
                 </div>
@@ -72,8 +72,8 @@
                 </div>
             </div>
 
-            <!-- Container voor Spelerstreinen Kolommen -->
-            <div id="playerTracksContainer" class="flex gap-4 max-h-full h-full items-start">
+            <!-- Container voor Spelerstreinen Kolommen (Nu gegarandeerd horizontaal 'flex-row') -->
+            <div id="playerTracksContainer" class="flex flex-row flex-nowrap gap-4 max-h-full h-full items-start">
                 <!-- Dynamisch gevuld via app.js -->
             </div>
 
