@@ -3,12 +3,11 @@ let selectedStoneIndex = null;
 let selectedTrainId = null;
 let draggedStoneIndex = null;
 
-// Geluidseffecten (Mixkit open-source CDN)
+// Geluidseffecten
 const audioTurn = new Audio('https://mixkit.co'); 
 const audioTrainOpen = new Audio('https://mixkit.co'); 
 const audioKnock = new Audio('https://mixkit.co'); 
 
-// Browser audio-context ontgrendelen bij gebruikersinteractie
 function unlockAudio() {
     audioTurn.play().then(() => { audioTurn.pause(); audioTurn.currentTime = 0; }).catch(() => {});
     audioTrainOpen.play().then(() => { audioTrainOpen.pause(); audioTrainOpen.currentTime = 0; }).catch(() => {});
@@ -88,7 +87,6 @@ socket.on('joinSuccess', () => {
 
 socket.on('errorMsg', (msg) => alert(msg));
 
-// Ontvang geluidssignalen vanuit de backend
 socket.on('playSound', (type) => {
     if (type === 'turn') audioTurn.play().catch(() => {});
     if (type === 'trainOpen') audioTrainOpen.play().catch(() => {});
@@ -124,7 +122,7 @@ socket.on('updateGame', (game) => {
     document.getElementById('centerStone').innerText = game.startNumber + '|' + game.startNumber;
     document.getElementById('boneyardCount').innerText = game.boneyard.length;
 
-    // INTERFACE UPDATE: BOVENSTE SPELER STATUS BALK RENDEREN
+    // 1. BOVENSTE SPELER STATUS BALK RENDEREN
     const headerRow = document.getElementById('playerHeaderRow');
     headerRow.innerHTML = "";
 
@@ -156,22 +154,22 @@ socket.on('updateGame', (game) => {
         banner.classList.add('hidden');
     }
 
-    // INTERFACE UPDATE: MEXICAN TRAIN (KOLOM)
+    // 2. MEXICAN TRAIN VERTICAAL KOLOM RENDEREN
     const isMexDouble = game.requiredDouble && game.requiredDouble.active && game.requiredDouble.targetId === 'mexican';
     const mexTrackCard = document.getElementById('mexicanTrackCard');
-    mexTrackCard.className = 'bg-slate-900 p-3 rounded-xl border-2 cursor-pointer transition flex flex-col min-w-[130px] max-h-full ' + 
+    mexTrackCard.className = 'bg-slate-900 p-3 rounded-xl border-2 cursor-pointer transition flex flex-col min-w-[140px] max-h-full h-full ' + 
         (isMexDouble ? 'border-red-500 bg-red-950/20 animate-pulse' : 'border-transparent hover:border-yellow-500');
     
     const mexTrack = document.getElementById('mexicanTrack');
     mexTrack.innerHTML = "";
     game.mexicanTrain.forEach((s) => {
         const span = document.createElement("div");
-        span.className = "track-stone my-1 mx-auto shadow";
-        span.innerText = s + "\n" + s;
+        span.className = "track-stone my-1 mx-auto shadow flex flex-col items-center justify-center";
+        span.innerText = s[0] + "\n" + s[1]; // Correct uit elkaar gehaald
         mexTrack.appendChild(span);
     });
 
-    // INTERFACE UPDATE: VERTICALE SPELERSTREINEN (KOLOMMEN)
+    // 3. VERTICALE SPELERSTREINEN KOLOMMEN RENDEREN
     const tracksContainer = document.getElementById('playerTracksContainer');
     tracksContainer.innerHTML = "";
 
@@ -183,12 +181,11 @@ socket.on('updateGame', (game) => {
         if (isTargetDouble) borderClass = 'border-red-500 bg-red-950/20 animate-pulse';
 
         const colDiv = document.createElement("div");
-        colDiv.className = "bg-slate-900 p-3 rounded-xl border-2 flex flex-col min-w-[130px] max-h-full cursor-pointer transition " + borderClass + " hover:border-blue-500";
+        colDiv.className = "bg-slate-900 p-3 rounded-xl border-2 flex flex-col min-w-[140px] max-h-full h-full cursor-pointer transition " + borderClass + " hover:border-blue-500";
         colDiv.onclick = () => selectTrain(p.id);
 
-        // NIEUWE INTERFACE: Speler info staat nu ALTIJD bovenaan de verticale kolom
         const colHeader = document.createElement("div");
-        colHeader.className = "text-center border-b border-slate-700 pb-2 mb-2 text-xs flex flex-col items-center gap-1";
+        colHeader.className = "text-center border-b border-slate-700 pb-2 mb-2 text-xs flex flex-col items-center gap-1 flex-shrink-0";
         
         const titleSpan = document.createElement("span");
         titleSpan.className = "font-bold truncate max-w-[110px] " + (p.id === socket.id ? "text-blue-400" : "text-slate-200");
@@ -214,12 +211,12 @@ socket.on('updateGame', (game) => {
         }
 
         const stonesScrollDiv = document.createElement("div");
-        stonesScrollDiv.className = "flex flex-col gap-1.5 overflow-y-auto no-scrollbar items-center flex-1 py-1";
+        stonesScrollDiv.className = "flex flex-col gap-2 overflow-y-auto no-scrollbar items-center flex-1 py-1 min-h-0";
 
         p.train.forEach((s) => {
             const stoneSpan = document.createElement("div");
-            stoneSpan.className = "track-stone shadow";
-            stoneSpan.innerText = s + "\n" + s;
+            stoneSpan.className = "track-stone shadow flex flex-col items-center justify-center";
+            stoneSpan.innerText = s[0] + "\n" + s[1]; // Correct uit elkaar gehaald
             stonesScrollDiv.appendChild(stoneSpan);
         });
 
@@ -228,58 +225,73 @@ socket.on('updateGame', (game) => {
         tracksContainer.appendChild(colDiv);
     });
 
-    // HAND & KNOOPSTATUS BEDRIJF
+    // 4. HAND & KNOOPSTATUS HANDLES
     const drawBtn = document.getElementById('drawBtn');
     const passBtn = document.getElementById('passBtn');
     const drawStatusLabel = document.getElementById('drawStatusLabel');
     const isMyTurn = game.players[game.currentTurn]?.id === socket.id;
+    const isSpectator = game.spectators && game.spectators.some(s => s.id === socket.id);
 
-    if (isMyTurn && !game.gameOver) {
-        if (!game.hasDrawn) {
-        drawBtn.disabled = false;
+    if (isSpectator) {
+        drawBtn.disabled = true;
         passBtn.disabled = true;
-        drawStatusLabel.innerText = game.requiredDouble && game.requiredDouble.active ? "Leg op de dubbel of pak!" : "Jouw beurt: Leg of pak een steen";
-        drawStatusLabel.className = "text-red-400 font-bold";
+        drawStatusLabel.innerText = "Spectatormodus";
+        drawStatusLabel.className = "text-slate-500";
+    } else if (isMyTurn && !game.gameOver) {
+        if (!game.hasDrawn) {
+            drawBtn.disabled = false;
+            passBtn.disabled = true;
+            drawStatusLabel.innerText = game.requiredDouble && game.requiredDouble.active ? "Leg op de dubbel of pak!" : "Jouw beurt: Leg of pak een steen";
+            drawStatusLabel.className = "text-red-400 font-bold";
+        } else {
+            drawBtn.disabled = true;
+            passBtn.disabled = false;
+            drawStatusLabel.innerText = "Leg aan of klik op Pas.";
+            drawStatusLabel.className = "text-emerald-400 font-bold";
+        }
     } else {
         drawBtn.disabled = true;
-        passBtn.disabled = false;
-        drawStatusLabel.innerText = "Leg aan of klik op Pas.";
-        drawStatusLabel.className = "text-emerald-400 font-bold";
+        passBtn.disabled = true;
+        drawStatusLabel.innerText = game.gameOver ? "SPEL AFGELOPEN!" : "Wachten op tegenstander...";
+        drawStatusLabel.className = "text-slate-500";
     }
-} else {
-    drawBtn.disabled = true;
-    passBtn.disabled = true;
-    drawStatusLabel.innerText = game.gameOver ? "SPEL AFGELOPEN!" : "Wachten op tegenstander...";
-    drawStatusLabel.className = "text-slate-500";
-}
 
-const handDiv = document.getElementById('myHand');
-handDiv.innerHTML = "";
+    const handDiv = document.getElementById('myHand');
+    handDiv.innerHTML = "";
 
-const myHand = game.hands[socket.id] || [];
-myHand.forEach((s, idx) => {
-    const btn = document.createElement("button");
-    btn.className = "domino p-2 min-w-[55px] max-w-[55px] flex flex-col items-center justify-center text-md cursor-grab active:cursor-grabbing";
-    btn.draggable = true;
-    btn.ondragstart = (e) => handleDragStart(e, idx);
-    btn.ondragover = (e) => handleDragOver(e);
-    btn.ondrop = (e) => handleDrop(e, idx);
-    btn.onclick = () => selectStone(idx, s + "|" + s);
+    const myHand = game.hands[socket.id] || [];
 
-    const topSpan = document.createElement("span");
-    topSpan.innerText = s;
+    if (isSpectator) {
+        const specDiv = document.createElement("div");
+        specDiv.className = "text-slate-400 text-xs italic p-2";
+        specDiv.innerText = "Je kijkt live mee.";
+        handDiv.appendChild(specDiv);
+    } else {
+        myHand.forEach((s, idx) => {
+            const btn = document.createElement("button");
+            // Tip: Voeg h-[90px] en justify-between toe voor een betere domino layout
+            btn.className = "domino p-2 min-w-[55px] max-w-[55px] flex flex-col items-center justify-center text-md cursor-grab active:cursor-grabbing flex-shrink-0 shadow";
+            btn.draggable = true;
+            btn.ondragstart = (e) => handleDragStart(e, idx);
+            btn.ondragover = (e) => handleDragOver(e);
+            btn.ondrop = (e) => handleDrop(e, idx);
+            btn.onclick = () => selectStone(idx, s[0] + "|" + s[1]); // Toont nette string bij selectie
 
-    const line = document.createElement("div");
-    line.className = "w-full border-t border-gray-400 my-0.5";
+            const topSpan = document.createElement("span");
+            topSpan.innerText = s[0]; // Bovenste getal
 
-    const botSpan = document.createElement("span");
-    botSpan.innerText = s;
+            const line = document.createElement("div");
+            line.className = "w-full border-t border-gray-400 my-0.5";
 
-    btn.appendChild(topSpan);
-    btn.appendChild(line);
-    btn.appendChild(botSpan);
-    handDiv.appendChild(btn);
-});
+            const botSpan = document.createElement("span");
+            botSpan.innerText = s[1]; // Onderste getal
+
+            btn.appendChild(topSpan);
+            btn.appendChild(line);
+            btn.appendChild(botSpan);
+            handDiv.appendChild(btn);
+        });
+    }
 });
 
 socket.on('gameStarted', (game) => { 
@@ -295,5 +307,5 @@ socket.on('roundEnded', ({ winner, nextRoundReady, champion, game }) => {
         document.getElementById('board').classList.add('hidden');
         document.getElementById('lobby').classList.remove('hidden');
     }
-    socket('updateGame', game);
+    socket.emit('updateGame', game);
 });
