@@ -48,7 +48,6 @@ function selectStone(index, displayValue) {
     checkAndExecute();
 }
 
-// Selecteer de trein (kolom)
 function selectTrain(id) {
     selectedTrainId = id;
     checkAndExecute();
@@ -122,7 +121,7 @@ socket.on('updateGame', (game) => {
     document.getElementById('centerStone').innerText = game.startNumber + '|' + game.startNumber;
     document.getElementById('boneyardCount').innerText = game.boneyard.length;
 
-    // 1. BOVENSTE STATUSBALK RENDEREN
+    // 1. BOVENSTE SPELER STATUS BALK RENDEREN
     const headerRow = document.getElementById('playerHeaderRow');
     headerRow.innerHTML = "";
 
@@ -147,7 +146,6 @@ socket.on('updateGame', (game) => {
         headerRow.appendChild(pBox);
     });
 
-    // REPARATIE BUG: Toon banner alleen als er een DUBBELSTEEN VERPLICHTING actief is
     const banner = document.getElementById('doubleWarningBanner');
     if (game.requiredDouble && game.requiredDouble.active === true) {
         banner.classList.remove('hidden');
@@ -175,7 +173,7 @@ socket.on('updateGame', (game) => {
         mexTrack.appendChild(stoneBox);
     });
 
-    // 3. VERTICALE SPELERSTREINEN KOLOMMEN RENDEREN (INCLUSIEF SCHEIDINGSLIJNEN)
+    // 3. VERTICALE SPELERSTREINEN KOLOMMEN RENDEREN
     const tracksContainer = document.getElementById('playerTracksContainer');
     tracksContainer.innerHTML = "";
 
@@ -187,20 +185,21 @@ socket.on('updateGame', (game) => {
         if (isTargetDouble) borderClass = 'border-red-500 bg-red-950/20 animate-pulse';
 
         const colDiv = document.createElement("div");
-        // border-r border-slate-700 voegt de gevraagde scheidingslijnen toe tussen de spelerskolommen!
         colDiv.className = "bg-slate-900 p-3 border-y-2 border-l-2 border-transparent border-r border-slate-700 flex flex-col min-w-[140px] max-h-full h-full cursor-pointer transition flex-shrink-0 " + borderClass + " hover:border-blue-500";
         colDiv.onclick = () => selectTrain(p.id);
 
         const colHeader = document.createElement("div");
         colHeader.className = "text-center border-b border-slate-700 pb-2 mb-2 text-xs flex flex-col items-center gap-1 flex-shrink-0";
         
+        // REPARATIE: Naam krijgt nu een eigen element, los van de rest van de statistieken!
         const titleSpan = document.createElement("span");
         titleSpan.className = "font-bold truncate max-w-[110px] " + (p.id === socket.id ? "text-blue-400" : "text-slate-200");
         titleSpan.innerText = p.name;
 
+        // REPARATIE: Nette scheidingslijn en spaties tussen score en stenen
         const scoreSpan = document.createElement("span");
         scoreSpan.className = "text-[10px] text-slate-400";
-        scoreSpan.innerText = p.totalScore + " pnt | " + handLength + " stn";
+        scoreSpan.innerText = p.totalScore + " pnt  |  " + handLength + " stn";
         
         const statusSpan = document.createElement("span");
         statusSpan.className = "text-[9px] px-1.5 py-0.5 rounded font-bold " + (p.isOpen ? "bg-red-950 text-red-400 border border-red-900" : "bg-slate-800 text-slate-500");
@@ -223,9 +222,7 @@ socket.on('updateGame', (game) => {
         p.train.forEach((s) => {
             const stoneBox = document.createElement("div");
             stoneBox.className = "track-stone shadow flex flex-col items-center justify-center p-1.5 mx-auto";
-        const top = document.createElement("span"); 
-        top.innerText = s[0];
-        
+            const top = document.createElement("span"); top.innerText = s[0];
         const line = document.createElement("div"); 
         line.className = "w-full border-t border-gray-400 my-0.5";
         
@@ -248,14 +245,8 @@ const passBtn = document.getElementById('passBtn');
 const drawStatusLabel = document.getElementById('drawStatusLabel');
 
 const isMyTurn = game.players[game.currentTurn]?.id === socket.id;
-const isSpectator = game.spectators && game.spectators.some(s => s.id === socket.id);
 
-if (isSpectator) {
-    drawBtn.disabled = true;
-    passBtn.disabled = true;
-    drawStatusLabel.innerText = "Spectatormodus";
-    drawStatusLabel.className = "text-slate-500";
-} else if (isMyTurn && !game.gameOver) {
+if (isMyTurn && !game.gameOver) {
     if (!game.hasDrawn) {
         drawBtn.disabled = false;
         passBtn.disabled = true;
@@ -279,37 +270,30 @@ handDiv.innerHTML = "";
 
 const myHand = game.hands[socket.id] || [];
 
-if (isSpectator) {
-    const specDiv = document.createElement("div");
-    specDiv.className = "text-slate-400 text-xs italic p-2";
-    specDiv.innerText = "Je kijkt live mee.";
-    handDiv.appendChild(specDiv);
-} else {
-    myHand.forEach((s, idx) => {
-        const btn = document.createElement("button");
-        btn.className = "domino p-2 min-w-[55px] max-w-[55px] flex flex-col items-center justify-center text-md cursor-grab active:cursor-grabbing flex-shrink-0 shadow";
-        btn.draggable = true;
-        btn.ondragstart = (e) => handleDragStart(e, idx);
-        btn.ondragover = (e) => handleDragOver(e);
-        btn.ondrop = (e) => handleDrop(e, idx);
-        btn.onclick = () => selectStone(idx, s[0] + "|" + s[1]);
+myHand.forEach((s, idx) => {
+    const btn = document.createElement("button");
+    btn.className = "domino p-2 min-w-[55px] max-w-[55px] flex flex-col items-center justify-center text-md cursor-grab active:cursor-grabbing flex-shrink-0 shadow";
+    btn.draggable = true;
+    btn.ondragstart = (e) => handleDragStart(e, idx);
+    btn.ondragover = (e) => handleDragOver(e);
+    btn.ondrop = (e) => handleDrop(e, idx);
+    btn.onclick = () => selectStone(idx, s[0] + "|" + s[1]);
 
-        const topSpan = document.createElement("span"); 
-        topSpan.innerText = s[0];
+    const topSpan = document.createElement("span"); 
+    topSpan.innerText = s[0];
 
-        const line = document.createElement("div"); 
-        line.className = "w-full border-t border-gray-400 my-0.5";
+    const line = document.createElement("div"); 
+    line.className = "w-full border-t border-gray-400 my-0.5";
 
-        const botSpan = document.createElement("span"); 
-        botSpan.innerText = s[1];
+    const botSpan = document.createElement("span"); 
+    botSpan.innerText = s[1];
 
-        btn.appendChild(topSpan); 
-        btn.appendChild(line); 
-        btn.appendChild(botSpan);
-        handDiv.appendChild(btn);
-    });
-}
-// Sluiting van de bovenliggende functie/luisteraar
+    btn.appendChild(topSpan); 
+    btn.appendChild(line); 
+    btn.appendChild(botSpan);
+    handDiv.appendChild(btn);
+});
+// Sluiting van de bovenliggende socket-luisteraar (bijv. updateBoard)
 });
 
 socket.on('gameStarted', (game) => { 
