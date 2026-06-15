@@ -111,14 +111,26 @@ if (socket) {
 
         // Lobby wachtlijst renderen
         const list = document.getElementById('playerList');
-        if (list) {
-            list.innerHTML = "";
-            game.players.forEach(p => {
-                const item = document.createElement("li");
-                item.innerText = p.name + " (Totaal: " + p.totalScore + " pnt)";
-                list.appendChild(item);
-            });
-        }
+            if (list) {
+                list.innerHTML = "";
+                
+                // Toon actieve spelers
+                game.players.forEach(p => {
+                    const item = document.createElement("li");
+                    item.innerText = p.name + " (Totaal: " + p.totalScore + " pnt)";
+                    list.appendChild(item);
+                });
+                
+                // REPARATIE: Controleer veilig of er spectators zijn zonder te crashen als de lijst leeg is
+                if (game.spectators && game.spectators.length > 0) {
+                    const specItem = document.createElement("li");
+                    specItem.style.color = "#94a3b8";
+                    specItem.style.marginTop = "10px";
+                    specItem.style.listStyleType = "none";
+                    specItem.innerText = "👀 Kijkers: " + game.spectators.map(s => s.name).join(', ');
+                    list.appendChild(specItem);
+                }
+            }
 
         const lobbyJoinBtn = document.getElementById('lobbyJoinBtn');
         const lobbyStartBtn = document.getElementById('lobbyStartBtn');
