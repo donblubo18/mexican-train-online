@@ -4,91 +4,120 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mexican Train Live</title>
-    <script src="https://tailwindcss.com"></script>
-    <script src="/socket.io/socket.io.js"></script>
     <style>
-        .domino { background: #fefefe; color: #111; font-weight: bold; border-radius: 6px; border: 2px solid #ccc; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
-        .domino:hover { transform: translateY(-4px); border-color: #fbbf24; }
-        .track-stone { background: #fff; color: #000; padding: 4px 8px; border-radius: 4px; font-size: 14px; font-weight: bold; border: 1px solid #444; text-align: center; width: 50px; flex-shrink: 0; }
+        body { background-color: #1e293b; color: #ffffff; font-family: sans-serif; margin: 0; padding: 0; min-height: 100vh; flex-direction: column; display: flex; overflow: hidden; }
+        .hidden { display: none !important; }
+        #lobby { max-width: 400px; margin: 80px auto; background-color: #0f172a; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        #lobby h1 { color: #f59e0b; margin-top: 0; text-align: center; font-size: 28px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 14px; font-weight: bold; }
+        .form-group input { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; background-color: #334155; border: 1px solid #475569; color: white; font-size: 16px; }
+        .btn { width: 100%; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; margin-bottom: 10px; font-size: 15px; transition: 0.2s; }
+        .btn-yellow { background-color: #f59e0b; color: #0f172a; }
+        .btn-slate { background-color: #475569; color: white; }
+        .btn-emerald { background-color: #059669; color: white; }
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        header { background-color: #0f172a; border-bottom: 4px solid #000000; padding: 12px; flex-shrink: 0; }
+        #playerHeaderRow { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; gap: 12px; overflow-x: auto; padding-bottom: 5px; justify-content: center; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .player-status-card { padding: 8px 16px; border-radius: 8px; border: 1px solid #475569; text-align: center; min-w: 110px; font-size: 13px; background-color: #1e293b; color: #cbd5e1; }
+        .player-status-card.active { background-color: rgba(245, 158, 11, 0.15); border-color: #f59e0b; font-weight: bold; color: #fde047; }
+        .player-status-card .stats { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+        #gameStatusSummary { text-align: center; font-size: 12px; color: #94a3b8; margin-top: 8px; display: flex; justify-content: center; gap: 24px; }
+
+        #doubleWarningBanner { background-color: #dc2626; color: white; font-weight: bold; padding: 8px; text-align: center; font-size: 13px; flex-shrink: 0; border-bottom: 4px solid #000000; }
+
+        main { flex: 1; background-color: #1e293b; overflow-x: auto; overflow-y: hidden; min-height: 0; width: 100%; display: flex; }
+        #tracksMasterContainer, #playerTracksContainer { height: 100%; display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: stretch; }
+        
+        .train-column { display: flex; flex-direction: column; min-width: 160px; max-width: 160px; height: 100%; background-color: #0f172a; border-right: 4px solid #000000; box-sizing: border-box; cursor: pointer; flex-shrink: 0; }
+        .column-header { text-align: center; border-bottom: 4px solid #000000; padding: 12px 8px; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; background-color: #0f172a; }
+        .column-header .title { font-weight: bold; color: #e2e8f0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 140px; }
+        .column-header .score-stn { font-size: 11px; color: #94a3b8; }
+        .column-header .status-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; background-color: #334155; color: #94a3b8; }
+        .column-header .status-badge.open { background-color: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
+
+        .stones-scroll-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px; min-height: 0; }
+        .track-stone { background: #ffffff; color: #111111; padding: 6px; border-radius: 6px; font-size: 16px; font-weight: bold; border: 2px solid #475569; text-align: center; width: 42px; height: 65px; display: flex; flex-direction: column; items-center: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.2); flex-shrink: 0; box-sizing: border-box; }
+        .track-stone .line { width: 100%; border-top: 2px solid #94a3b8; margin: 3px 0; }
+
+        footer { background-color: #020617; border-top: 4px solid #000000; padding: 15px; flex-shrink: 0; z-index: 10; }
+        .footer-container { max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .action-buttons { display: flex; gap: 10px; }
+        .action-buttons button { padding: 8px 18px; border-radius: 6px; font-weight: bold; font-size: 13px; cursor: pointer; border: none; color: white; }
+        .btn-draw { background-color: #2563eb; }
+        .btn-pass { background-color: #ea580c; }
+        .action-buttons button:disabled { opacity: 0.2; cursor: not-allowed; }
+
+        #myHand { width: 100%; display: flex; gap: 8px; justify-content: center; overflow-x: auto; min-height: 85px; }
+        .domino { background: #fefefe; color: #111111; font-weight: bold; border-radius: 6px; border: 2px solid #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.2); width: 52px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 18px; cursor: grab; flex-shrink: 0; padding: 0; }
+        .domino .line { width: 100%; border-top: 2px solid #64748b; margin: 4px 0; }
     </style>
 </head>
-<body class="bg-slate-800 text-white min-h-screen font-sans flex flex-col overflow-hidden">
+<body>
 
     <!-- LOBBY SCREEN -->
-    <div id="lobby" class="max-w-md mx-auto my-20 bg-slate-900 p-8 rounded-xl shadow-2xl">
-        <h1 class="text-3xl font-black mb-6 text-center text-yellow-400">🚂 MEXICAN TRAIN</h1>
-        <div class="space-y-4">
-            <div>
-                <label class="block text-sm font-semibold mb-1">Jouw Naam</label>
-                <input id="nameInp" type="text" class="w-full p-2.5 rounded bg-slate-700 text-white border border-slate-600 focus:outline-none focus:border-yellow-400">
-            </div>
-            <div>
-                <label class="block text-sm font-semibold mb-1">Maximale Steen (Aantal ogen)</label>
-                <input id="maxStoneInp" type="number" value="12" class="w-full p-2.5 rounded bg-slate-700 text-white border border-slate-600 focus:outline-none focus:border-yellow-400">
-            </div>
-            <button onclick="join()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold p-3 rounded transition">Deelnemen</button>
-            <button onclick="spectate()" class="w-full bg-slate-600 hover:bg-slate-700 text-white font-bold p-3 rounded transition">Kijken (Spectator)</button>
-            <button onclick="start()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-3 rounded transition">Spel Starten voor iedereen</button>
+    <div id="lobby">
+        <h1>🚂 MEXICAN TRAIN</h1>
+        <div class="form-group">
+            <label>Jouw Naam</label>
+            <input id="nameInp" type="text" placeholder="Vul je naam in...">
         </div>
-        <div class="mt-6 border-t border-slate-700 pt-4">
-            <h3 class="text-sm font-bold text-slate-400 mb-2">Wachtruimte:</h3>
-            <ul id="playerList" class="list-disc list-inside text-slate-300"></ul>
+        <div class="form-group">
+            <label>Maximale Steen (Aantal ogen)</label>
+            <input id="maxStoneInp" type="number" value="12">
+        </div>
+        <button onclick="join()" class="btn btn-yellow">Deelnemen</button>
+        <button onclick="spectate()" class="btn btn-slate">Kijken (Spectator)</button>
+        <button onclick="start()" class="btn btn-emerald">Spel Starten voor iedereen</button>
+        <div style="margin-top: 20px; border-top: 1px solid #334155; padding-top: 15px;">
+            <h3 style="font-size: 14px; color: #94a3b8; margin-bottom: 8px;">Wachtruimte:</h3>
+            <ul id="playerList" style="padding-left: 20px; margin: 0; color: #cbd5e1; font-size: 14px;"></ul>
         </div>
     </div>
 
     <!-- MAIN GAME BOARD -->
-    <div id="board" class="hidden flex-1 flex flex-col min-h-0">
-        
-        <!-- 1. BOVENSTE BALK -->
-        <header class="bg-slate-900 border-b border-slate-700 p-3 shadow-md flex-shrink-0">
-            <div id="playerHeaderRow" class="flex flex-row flex-nowrap gap-3 overflow-x-auto no-scrollbar justify-start md:justify-center items-center w-full" style="display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;"></div>
-            <div id="gameStatusSummary" class="text-center text-xs text-slate-400 mt-2 flex justify-center gap-6">
-                <span>Ronde: <strong id="roundNumberLabel" class="text-white">-</strong></span>
-                <span>Centrale steen: <strong id="centerStone" class="text-yellow-400">-</strong></span>
-                <span>In de pot: <strong id="boneyardCount" class="text-white">-</strong></span>
+    <div id="board" class="hidden">
+        <header>
+            <div id="playerHeaderRow" class="no-scrollbar"></div>
+            <div id="gameStatusSummary">
+                <span>Ronde: <strong id="roundNumberLabel">-</strong></span>
+                <span>Centrale steen: <strong id="centerStone">-</strong></span>
+                <span>In de pot: <strong id="boneyardCount">-</strong></span>
             </div>
         </header>
 
-        <!-- VERPLICHTING BANNER (Standaard verborgen via utility-klasse) -->
-        <div id="doubleWarningBanner" class="hidden bg-red-600 text-white font-black p-2 text-center shadow-lg text-xs tracking-wide flex-shrink-0">
+        <div id="doubleWarningBanner">
             ⚠️ VERPLICHTING: Er ligt een open dubbelsteen! Je moet hier eerst verplicht aanleggen.
         </div>
 
-        <!-- 2. MIDDENVELD MET SCHEIDINGSLIJNEN -->
-        <main class="flex-1 overflow-x-auto overflow-y-hidden bg-slate-850 p-4 min-h-0 w-full no-scrollbar">
-            <div id="tracksMasterContainer" class="h-full flex flex-row flex-nowrap items-start" style="display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;">
-                
-                <!-- Mexican Train Kolom (rechterkant heeft een scheidingslijn gekregen) -->
-                <div onclick="selectTrain('mexican')" id="mexicanTrackCard" class="bg-slate-900 p-3 rounded-l-xl border-y-2 border-l-2 border-transparent border-r border-slate-700 cursor-pointer transition flex flex-col min-w-[140px] max-h-full h-full shadow-lg flex-shrink-0">
-                    <div class="text-center font-bold text-emerald-400 text-sm border-b border-slate-700 pb-2 mb-2 flex-shrink-0">
-                        🚂 Mexican Train
+        <main class="no-scrollbar">
+            <div id="tracksMasterContainer">
+                <div onclick="selectTrain('mexican')" id="mexicanTrackCard" class="train-column">
+                    <div class="column-header">
+                        <div class="title" style="color: #34d399;">🚂 Mexican Train</div>
+                        <div class="status-badge" style="background-color: #064e3b; color: #6ee7b7; border: 1px solid #047857;">ALTIJD OPEN</div>
                     </div>
-                    <div id="mexicanTrack" class="flex flex-col gap-2 overflow-y-auto no-scrollbar items-center flex-1 py-1 min-h-0"></div>
+                    <div id="mexicanTrack" class="stones-scroll-area no-scrollbar"></div>
                 </div>
-
-                <!-- Container voor Spelerstreinen Kolommen -->
-                <div id="playerTracksContainer" class="h-full flex flex-row flex-nowrap items-start" style="display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;"></div>
-
+                <div id="playerTracksContainer"></div>
             </div>
         </main>
 
-        <!-- 3. ONDERSTE BALK -->
-        <footer class="bg-slate-950 border-t border-slate-800 p-4 shadow-inner z-10 flex-shrink-0">
-            <div class="max-w-3xl mx-auto flex flex-col items-center gap-2">
-                <div class="text-xs text-slate-400">
-                    Geselecteerd: <span id="selectedStoneLabel" class="text-yellow-400 font-bold">-</span> | 
-                    Status: <span id="drawStatusLabel" class="text-blue-400 font-bold">-</span>
+        <footer>
+            <div class="footer-container">
+                <div style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">
+                    Geselecteerd: <strong id="selectedStoneLabel">-</strong> | Status: <span id="drawStatusLabel" style="font-weight: bold;">-</span>
                 </div>
-                <div class="flex gap-2 mb-1">
-                    <button id="drawBtn" onclick="draw()" class="bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded font-bold text-xs disabled:opacity-30">Pak Steen</button>
-                    <button id="passBtn" onclick="pass()" class="bg-orange-600 hover:bg-orange-700 px-3 py-1.5 rounded font-bold text-xs disabled:opacity-30">Pas / Open Trein</button>
+                <div class="action-buttons">
+                    <button id="drawBtn" onclick="draw()" class="btn-draw">Pak Steen</button>
+                    <button id="passBtn" onclick="pass()" class="btn-pass">Pas / Open Trein</button>
                 </div>
-                <div id="myHand" class="w-full flex gap-2 justify-center overflow-x-auto py-1 no-scrollbar min-h-[90px]"></div>
+                <div id="myHand" class="no-scrollbar"></div>
             </div>
         </footer>
-
     </div>
 
     <script src="app.js"></script>
