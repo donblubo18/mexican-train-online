@@ -4,7 +4,16 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+
+// OPLOSSING CORS BUG SERVER: Accepteer expliciet alle polling en websocket verbindingen
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"],
+        credentials: true
+    },
+    allowEIO3: true
+});
 
 app.use(express.static('public'));
 
