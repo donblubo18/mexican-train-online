@@ -1,10 +1,22 @@
-console.log("Mexican Train: app.js geladen!");
+console.log("Mexican Train: app.js succesvol geladen!");
+
+// 1. Geluidseffecten direct bovenaan aanmaken
 const audioTurn = new Audio('https://mixkit.co'); 
 const audioTrainOpen = new Audio('https://mixkit.co'); 
 const audioKnock = new Audio('https://mixkit.co'); 
 
-let socket = typeof io !== 'undefined' ? io("https://onrender.com") : null;
-let selectedStoneIndex = null, selectedTrainId = null, draggedStoneIndex = null;
+// 2. Failsafe verbinding leggen met jouw specifieke Render url
+let socket;
+if (typeof io !== 'undefined') {
+    socket = io("https://onrender.com");
+    console.log("Verbinding met Render spelserver succesvol opgezet!");
+} else {
+    console.error("CRITIEKE FOUT: Socket.io kon niet vanaf Render ingeladen worden.");
+}
+
+let selectedStoneIndex = null;
+let selectedTrainId = null;
+let draggedStoneIndex = null;
 
 function unlockAudio() {
     audioTurn.play().then(() => { audioTurn.pause(); audioTurn.currentTime = 0; }).catch(() => {});
@@ -12,15 +24,22 @@ function unlockAudio() {
     audioKnock.play().then(() => { audioKnock.pause(); audioKnock.currentTime = 0; }).catch(() => {});
 }
 
-if (sessionStorage.getItem('mexicanTrainJoined') && document.getElementById('nameInp')) {
-    document.getElementById('nameInp').disabled = true;
-}
+try {
+    if (sessionStorage.getItem('mexicanTrainJoined')) {
+        const nameInp = document.getElementById('nameInp');
+        if (nameInp) nameInp.disabled = true;
+    }
+} catch(e) { console.error("Fout bij laden van sessie:", e); }
 
 function join() {
     unlockAudio();
-    if (!socket) return alert("Geen serververbinding.");
-    if (sessionStorage.getItem('mexicanTrainJoined')) return alert("Je doet al mee!");
-    const name = document.getElementById('nameInp') ? document.getElementById('nameInp').value.trim() : "";
+    if (!socket) return alert("Geen verbinding met de server.");
+    if (sessionStorage.getItem('mexicanTrainJoined')) {
+        alert("Je doet al mee aan dit spel vanaf deze browser!");
+        return;
+    }
+    const nameInp = document.getElementById('nameInp');
+    const name = nameInp ? nameInp.value.trim() : "";
     if (name) socket.emit('joinGame', name);
     else alert("Vul eerst een naam in!");
 }
@@ -28,8 +47,12 @@ function join() {
 function start() {
     unlockAudio();
     if (!socket) return alert("Geen serververbinding.");
-    const max = document.getElementById('maxStoneInp') ? document.getElementById('maxStoneInp').value : "12";
-    if (!max || isNaN(max) || parseInt(max) < 1) return alert("Vul een geldig getal in!");
+    const maxInp = document.getElementById('maxStoneInp');
+    const max = maxInp ? maxInp.value : "12";
+    if (!max || isNaN(max) || parseInt(max) < 1) {
+        alert("Vul een geldig getal in!");
+        return;
+    }
     socket.emit('startGame', parseInt(max));
 }
 
@@ -37,46 +60,46 @@ function spectate() { unlockAudio(); if(socket) socket.emit('joinAsSpectator'); 
 function draw() { if(socket) socket.emit('drawStone'); }
 function pass() { if(socket) socket.emit('passTurn'); }
 
-function selectStone(idx, val) {
-    selectedStoneIndex = idx;
-    if (document.getElementById('selectedStoneLabel')) document.getElementById('selectedStoneLabel').innerText = val;
+function selectStone(index, displayValue) {
+    selectedStoneIndex = index;
+    const label = document.getElementById('selectedStoneLabel');
+    if (label) label.innerText = displayValue;
+    checkAndExecute();
+}
+
+function selectTrain(id) {
+    selectedTrainId = id;
+    checkAndExecute();
+}
+
+function checkAndExecute() {
     if (selectedStoneIndex !== null && selectedTrainId !== null && socket) {
         socket.emit('playStone', { stoneIndex: selectedStoneIndex, targetId: selectedTrainId });
-        selectedStoneIndex = null; selectedTrainId = null;
-        if (document.getElementById('selectedStoneLabel')) document.getElementById('selectedStoneLabel').innerText = "-";
+        selectedStoneIndex = null;
+        selectedTrainId = null;
+        const label = document.getElementById('selectedStoneLabel');
+        if (label) label.innerText = "-";
     }
 }
-function selectTrain(id) { selectedTrainId = id; selectStone(selectedStoneIndex, document.getElementById('selectedStoneLabel')?.innerText || "-"); }
-function handleDragStart(e, idx) { draggedStoneIndex = idx; e.dataTransfer.effectAllowed = 'move'; }
+
+function handleDragStart(e, index) { draggedStoneIndex = index; e.dataTransfer.effectAllowed = 'move'; }
 function handleDragOver(e) { if (e.preventDefault) e.preventDefault(); return false; }
-function handleDrop(e, targetIdx) {
+function handleDrop(e, targetIndex) {
     if (e.stopPropagation) e.stopPropagation();
-    if (draggedStoneIndex !== null && draggedStoneIndex !== targetIdx && socket) {
-        socket.emit('reorderHand', { fromIndex: draggedStoneIndex, toIndex: targetIdx });
+    if (draggedStoneIndex !== null && draggedStoneIndex !== targetIndex && socket) {
+        socket.emit('reorderHand', { fromIndex: draggedStoneIndex, toIndex: targetIndex });
     }
     draggedStoneIndex = null;
 }
-// Hulpfunctie om een losse dominosteen visueel op het bord te tekenen
-function createStoneEl(s, isHandCard, idx) {
-    const btn = document.createElement(isHandCard ? "button" : "div");
-    btn.className = isHandCard ? "domino" : "track-stone";
-    if (isHandCard) {
-        btn.draggable = true;
-        btn.ondragstart = (e) => handleDragStart(e, idx);
-        btn.ondragover = (e) => handleDragOver(e);
-        btn.ondrop = (e) => handleDrop(e, idx);
-        btn.onclick = () => selectStone(idx, s.join("|"));
-    }
-    btn.innerHTML = "<span>" + s[0] + "</span><div class='line'></div><span>" + s[1] + "</span>";
-    return btn;
-}
-
 if (socket) {
     socket.on('joinSuccess', () => {
         sessionStorage.setItem('mexicanTrainJoined', 'true');
-        if (document.getElementById('lobbyJoinBtn')) document.getElementById('lobbyJoinBtn').disabled = true;
+        const lobbyJoinBtn = document.getElementById('lobbyJoinBtn');
+        if (lobbyJoinBtn) lobbyJoinBtn.disabled = true;
     });
+
     socket.on('errorMsg', (msg) => alert(msg));
+
     socket.on('playSound', (type) => {
         if (type === 'turn') audioTurn.play().catch(() => {});
         if (type === 'trainOpen') audioTrainOpen.play().catch(() => {});
@@ -85,6 +108,8 @@ if (socket) {
 
     socket.on('updateGame', (game) => {
         if (!game || !game.players) return;
+
+        // Lobby wachtlijst renderen
         const list = document.getElementById('playerList');
         if (list) {
             list.innerHTML = "";
@@ -94,100 +119,251 @@ if (socket) {
                 list.appendChild(item);
             });
             if (game.spectators && game.spectators.length > 0) {
-                const spec = document.createElement("li");
-                spec.style = "color: #94a3b8; margin-top: 10px; list-style-type: none;";
-                spec.innerText = "👀 Kijkers: " + game.spectators.map(s => s.name).join(', ');
-                list.appendChild(spec);
+                const specItem = document.createElement("li");
+                specItem.style.color = "#94a3b8";
+                specItem.style.marginTop = "10px";
+                specItem.style.listStyleType = "none";
+                specItem.innerText = "👀 Kijkers: " + game.spectators.map(s => s.name).join(', ');
+                list.appendChild(specItem);
             }
         }
-        ["lobbyJoinBtn", "lobbyStartBtn", "lobbySpectateBtn"].forEach(id => {
-            const btn = document.getElementById(id);
-            if (btn) btn.disabled = game.started;
-        });
-        if (document.getElementById('lobbyJoinBtn') && sessionStorage.getItem('mexicanTrainJoined') && !game.started) {
-            document.getElementById('lobbyJoinBtn').disabled = true;
+
+        const lobbyJoinBtn = document.getElementById('lobbyJoinBtn');
+        const lobbyStartBtn = document.getElementById('lobbyStartBtn');
+        const lobbySpectateBtn = document.getElementById('lobbySpectateBtn');
+        
+        if (game.started) {
+            if (lobbyJoinBtn) lobbyJoinBtn.disabled = true;
+            if (lobbyStartBtn) lobbyStartBtn.disabled = true;
+            if (lobbySpectateBtn) lobbySpectateBtn.disabled = true;
+        } else {
+            if (lobbyJoinBtn && !sessionStorage.getItem('mexicanTrainJoined')) lobbyJoinBtn.disabled = false;
+            if (lobbyStartBtn) lobbyStartBtn.disabled = false;
+            if (lobbySpectateBtn) lobbySpectateBtn.disabled = false;
         }
+
         if (!game.started && !game.gameOver) return;
 
-        if (document.getElementById('lobby')) document.getElementById('lobby').classList.add('hidden');
-        if (document.getElementById('board')) document.getElementById('board').classList.remove('hidden');
-        if (document.getElementById('roundNumberLabel')) document.getElementById('roundNumberLabel').innerText = game.currentRound;
-        if (document.getElementById('centerStone')) document.getElementById('centerStone').innerText = game.startNumber + '|' + game.startNumber;
-        if (document.getElementById('boneyardCount')) document.getElementById('boneyardCount').innerText = game.boneyard ? game.boneyard.length : 0;
+        const lobbyDiv = document.getElementById('lobby');
+        const boardDiv = document.getElementById('board');
+        if (lobbyDiv) lobbyDiv.classList.add('hidden');
+        if (boardDiv) boardDiv.classList.remove('hidden');
 
+        const roundLabel = document.getElementById('roundNumberLabel');
+        const centerLabel = document.getElementById('centerStone');
+        const boneyardLabel = document.getElementById('boneyardCount');
+
+        if (roundLabel) roundLabel.innerText = game.currentRound;
+        if (centerLabel) centerLabel.innerText = game.startNumber + '|' + game.startNumber;
+        if (boneyardLabel) boneyardLabel.innerText = game.boneyard ? game.boneyard.length : 0;
+
+        // A. Bovenste spelerbalk opbouwen (Zonder sterretje, puur statistieken)
         const headerRow = document.getElementById('playerHeaderRow');
         if (headerRow) {
             headerRow.innerHTML = "";
             game.players.forEach((p, idx) => {
-                const card = document.createElement("div");
-                card.className = "player-status-card " + (game.currentTurn === idx ? "active" : "");
-                card.innerHTML = "<span>" + p.name + "</span><div class='stats'>" + (game.hands && game.hands[p.id] ? game.hands[p.id].length : 0) + " stn | " + p.totalScore + " pnt</div>";
-                headerRow.appendChild(card);
+                const isCurrent = game.currentTurn === idx;
+                const handLength = game.hands && game.hands[p.id] ? game.hands[p.id].length : 0;
+
+                const pBox = document.createElement("div");
+                pBox.className = "player-status-card " + (isCurrent ? "active" : "");
+
+                const nameSpan = document.createElement("span");
+                nameSpan.innerText = p.name; // Sterretje hier weggehaald naar de kolommen
+
+                const statsSpan = document.createElement("div");
+                statsSpan.className = "stats";
+                statsSpan.innerText = handLength + " stn | " + p.totalScore + " pnt";
+
+                pBox.appendChild(nameSpan);
+                pBox.appendChild(statsSpan);
+                headerRow.appendChild(pBox);
             });
         }
-        if (document.getElementById('doubleWarningBanner')) {
-            document.getElementById('doubleWarningBanner').classList.toggle('hidden', !(game.requiredDouble && game.requiredDouble.active));
+
+        const banner = document.getElementById('doubleWarningBanner');
+        if (banner) {
+            if (game.requiredDouble && game.requiredDouble.active === true) {
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
         }
-        if (document.getElementById('mexicanTrackCard')) {
-            document.getElementById('mexicanTrackCard').classList.toggle('double-highlight', !!(game.requiredDouble && game.requiredDouble.active && game.requiredDouble.targetId === 'mexican'));
+
+        // B. Mexican Train kolom renderen
+        const isMexDouble = game.requiredDouble && game.requiredDouble.active === true && game.requiredDouble.targetId === 'mexican';
+        const mexTrackCard = document.getElementById('mexicanTrackCard');
+        if (mexTrackCard) {
+            if (isMexDouble) mexTrackCard.classList.add('double-highlight');
+            else mexTrackCard.classList.remove('double-highlight');
         }
+        
         const mexTrack = document.getElementById('mexicanTrack');
         if (mexTrack && game.mexicanTrain) {
             mexTrack.innerHTML = "";
-            game.mexicanTrain.forEach(s => { if (Array.isArray(s)) mexTrack.appendChild(createStoneEl(s, false)); });
+            game.mexicanTrain.forEach((s) => {
+                if (!Array.isArray(s)) return;
+                const stoneBox = document.createElement("div");
+                stoneBox.className = "track-stone";
+                const top = document.createElement("span"); top.innerText = s[0];
+                const line = document.createElement("div"); line.className = "line";
+                const bot = document.createElement("span"); bot.innerText = s[1];
+                stoneBox.appendChild(top); stoneBox.appendChild(line); stoneBox.appendChild(bot);
+                mexTrack.appendChild(stoneBox);
+            });
         }
+
+        // C. Verticale spelerstreinen kolommen renderen (MET STERRETJE VOOR DE BEURT)
         const tracksContainer = document.getElementById('playerTracksContainer');
         if (tracksContainer) {
             tracksContainer.innerHTML = "";
             game.players.forEach((p, idx) => {
-                const isCurrent = game.currentTurn === idx;
-                const isDouble = game.requiredDouble && game.requiredDouble.active && game.requiredDouble.targetId === p.id;
-                const handLen = game.hands && game.hands[p.id] ? game.hands[p.id].length : 0;
+                const isCurrentTurn = game.currentTurn === idx; // Is deze specifieke kolom nu aan de beurt?
+                const isTargetDouble = game.requiredDouble && game.requiredDouble.active === true && game.requiredDouble.targetId === p.id;
+                const handLength = game.hands && game.hands[p.id] ? game.hands[p.id].length : 0;
+
+                const colDiv = document.createElement("div");
+                colDiv.className = "train-column " + (isTargetDouble ? "double-highlight" : "");
+                // Geef de actieve kolom een extra visuele goudkleurige gloed op het bord
+                if (isCurrentTurn) {
+                    colDiv.style.borderTop = "4px solid #f59e0b";
+                    colDiv.style.backgroundColor = "rgba(245, 158, 11, 0.03)";
+                }
+                colDiv.onclick = () => selectTrain(p.id);
+
+                const colHeader = document.createElement("div");
+                colHeader.className = "column-header";
                 
-                const col = document.createElement("div");
-                col.className = "train-column " + (isDouble ? "double-highlight" : "");
-                if (isCurrent) col.style = "border-top: 4px solid #f59e0b; background-color: rgba(245, 158, 11, 0.03);";
-                col.onclick = () => selectTrain(p.id);
+                const titleSpan = document.createElement("div");
+                titleSpan.className = "title " + (p.id === socket.id ? "me" : "");
+                
+                // NIEUW: Het sterretje ⭐ staat nu direct voor de naam in de treinkolom als diegene aan zet is!
+                titleSpan.innerText = (isCurrentTurn ? "⭐ " : "") + p.name;
 
-                let html = "<div class='column-header'><div class='title " + (p.id === socket.id ? "me" : "") + "'>" + (isCurrent ? "⭐ " : "") + p.name + "</div>";
-                html += "<div class='score-stn'>" + p.totalScore + " pnt | " + handLen + " stn</div>";
-                html += "<div class='status-badge " + (p.isOpen ? "open" : "") + "'>" + (p.isOpen ? "🔓 OPEN" : "🔒 PRIVÉ") + "</div>";
-                if (handLen === 1) html += "<div class='bounce-badge'>1 STEEN</div>";
-                html += "</div><div class='stones-scroll-area no-scrollbar'>";
-                col.innerHTML = html;
+                const scoreSpan = document.createElement("div");
+                scoreSpan.className = "score-stn";
+                scoreSpan.innerText = p.totalScore + " pnt  |  " + handLength + " stn";
+                
+                const statusSpan = document.createElement("div");
+                statusSpan.className = "status-badge " + (p.isOpen ? "open" : "");
+                statusSpan.innerText = p.isOpen ? "🔓 OPEN" : "🔒 PRIVÉ";
 
-                const scrollArea = col.querySelector('.stones-scroll-area');
-                if (p.train) { p.train.forEach(s => { if (Array.isArray(s)) scrollArea.appendChild(createStoneEl(s, false)); }); }
-                tracksContainer.appendChild(col);
+                colHeader.appendChild(titleSpan);
+                colHeader.appendChild(scoreSpan);
+                colHeader.appendChild(statusSpan);
+
+                if (handLength === 1) {
+                    const bounceBadge = document.createElement("div");
+                    bounceBadge.className = "bounce-badge";
+                    bounceBadge.innerText = "1 STEEN";
+                    colHeader.appendChild(bounceBadge);
+                }
+
+                const stonesScrollDiv = document.createElement("div");
+                stonesScrollDiv.className = "stones-scroll-area no-scrollbar";
+
+                if (p.train) {
+                    p.train.forEach((s) => {
+                        if (!Array.isArray(s)) return;
+                        const stoneBox = document.createElement("div");
+                        stoneBox.className = "track-stone";
+                        const top = document.createElement("span"); top.innerText = s[0];
+                        const line = document.createElement("div"); line.className = "line";
+                        const bot = document.createElement("span"); bot.innerText = s[1];
+                        stoneBox.appendChild(top); stoneBox.appendChild(line); stoneBox.appendChild(bot);
+                        stonesScrollDiv.appendChild(stoneBox);
+                    });
+                }
+
+                colDiv.appendChild(colHeader);
+                colDiv.appendChild(stonesScrollDiv);
+                tracksContainer.appendChild(colDiv);
             });
         }
-        const drawBtn = document.getElementById('drawBtn'), passBtn = document.getElementById('passBtn'), label = document.getElementById('drawStatusLabel');
-        if (drawBtn && passBtn && label) {
-            const isMyTurn = game.players[game.currentTurn]?.id === socket.id;
-            if (isMyTurn && !game.gameOver) {
-                drawBtn.disabled = game.hasDrawn; passBtn.disabled = !game.hasDrawn;
-                label.innerText = game.hasDrawn ? "Leg aan of klik op Pas." : (game.requiredDouble && game.requiredDouble.active ? "Leg op de dubbel of pak!" : "Jouw beurt: Leg of pak.");
-            } else {
-                drawBtn.disabled = true; passBtn.disabled = true;
-                label.innerText = game.gameOver ? "SPEL AFGELOPEN!" : "Wachten op tegenstander...";
-            }
-        }
-        const handDiv = document.getElementById('myHand');
-        if (handDiv) {
-            handDiv.innerHTML = ""; handDiv.style = "display:flex; flex-direction:row; flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; padding:5px;";
-            const myHand = game.hands && game.hands[socket.id] ? game.hands[socket.id] : [];
-            myHand.forEach((s, idx) => { if (Array.isArray(s)) handDiv.appendChild(createStoneEl(s, true, idx)); });
-        }
-    });
 
-    socket.on('gameStarted', (game) => { if(game) socket.emit('updateGame', game); });
-    socket.on('roundEnded', (data) => {
-        alert(data.nextRoundReady ? "Ronde voorbij! " + data.winner + " heeft uitgespeeld.\n\nVolgende ronde met Dubbel " + data.game.startNumber + "." : "FINALE AFGELOPEN!\n\n🏆 WINNAAR: " + data.champion + "!");
-        if (!data.nextRoundReady) {
-            sessionStorage.removeItem('mexicanTrainJoined');
-            if (document.getElementById('board')) document.getElementById('board').classList.add('hidden');
-            if (document.getElementById('lobby')) document.getElementById('lobby').classList.remove('hidden');
-        }
-        if (data.game) socket.emit('updateGame', data.game);
+        // D. Knoppen activeren of blokkeren
+        const drawBtn = document.getElementById('drawBtn');
+        const passBtn = document.getElementById('passBtn');
+        const drawStatusLabel = document.getElementById('drawStatusLabel');
+        const isMyTurn = game.players[game.currentTurn]?.id === socket.id;
+
+        if (drawBtn && passBtn && drawStatusLabel) {
+            if (isMyTurn && !game.gameOver) {
+                if (!game.hasDrawn) {
+                    drawBtn.disabled = false;
+                    passBtn.disabled = true;
+                    drawStatusLabel.innerText = game.requiredDouble && game.requiredDouble.active === true ? "Leg op de dubbel of pak!" : "Jouw beurt: Leg of pak een steen";
+                } else {
+                        drawBtn.disabled = true;
+                        passBtn.disabled = false;
+                        drawStatusLabel.innerText = "Leg aan of klik op Pas.";
+                        }
+                        } else {
+                            drawBtn.disabled = true;
+                            passBtn.disabled = true;
+                            drawStatusLabel.innerText = game.gameOver ? "SPEL AFGELOPEN!" : "Wachten op tegenstander...";
+    }
+}
+
+// E. Hand onderaan renderen (ZICHTBAARHEID OPALOSSING)
+const handDiv = document.getElementById('myHand');
+if (handDiv) {
+    handDiv.innerHTML = "";
+    
+    // Forceer CSS-eigenschappen direct via JS om te zorgen dat grote handen horizontaal doorscrollen en nooit afkappen
+    handDiv.style.display = "flex";
+    handDiv.style.flexDirection = "row";
+    handDiv.style.flexWrap = "nowrap";
+    handDiv.style.overflowX = "auto";
+    handDiv.style.justifyContent = "flex-start";
+    handDiv.style.padding = "5px";
+
+    const myHand = game.hands && game.hands[socket.id] ? game.hands[socket.id] : [];
+    
+    myHand.forEach((s, idx) => {
+        if (!Array.isArray(s)) return;
+        
+        const btn = document.createElement("button");
+        btn.className = "domino";
+        btn.draggable = true;
+        btn.ondragstart = (e) => handleDragStart(e, idx);
+        btn.ondragover = (e) => handleDragOver(e);
+        btn.ondrop = function(e) { handleDrop(e, idx); };
+        btn.onclick = function() { selectStone(idx, s.join("|")); };
+
+        const topSpan = document.createElement("span"); 
+        topSpan.innerText = s[0];
+
+        const line = document.createElement("div"); 
+        line.className = "line";
+
+        const botSpan = document.createElement("span"); 
+        botSpan.innerText = s[1];
+
+        btn.appendChild(topSpan); 
+        btn.appendChild(line); 
+        btn.appendChild(botSpan);
+        handDiv.appendChild(btn);
     });
 }
+// Sluiting van de bovenliggende luisteraar (bijv. socket.on('updateBoard'))
+});
+
+socket.on('gameStarted', (game) => { 
+    if (game) socket.emit('updateGame', game); 
+});
+
+socket.on('roundEnded', (data) => {
+    if (data.nextRoundReady) {
+        alert("Ronde voorbij! " + data.winner + " heeft uitgespeeld.\n\nVolgende ronde start met Dubbel " + data.game.startNumber + ".");
+    } else {
+        alert("HET SPEL IS FINALE AFGELOPEN!\n\n🏆 WINNAAR: " + data.champion + "!");
+        sessionStorage.removeItem('mexicanTrainJoined');
+        const boardDiv = document.getElementById('board');
+        const lobbyDiv = document.getElementById('lobby');
+        if (boardDiv) boardDiv.classList.add('hidden');
+        if (lobbyDiv) lobbyDiv.classList.remove('hidden');
+    }
+    if (data.game) socket.emit('updateGame', data.game);
+});
+} // Sluiting van de uiterste scope/functie waarin deze code staat
