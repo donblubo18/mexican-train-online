@@ -5,7 +5,6 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 
-// OPLOSSING CORS BUG SERVER: Accepteer expliciet alle polling en websocket verbindingen
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -19,7 +18,7 @@ app.use(express.static('public'));
 
 let game = {
     players: [],
-    spectators: [], // REPARATIE: Zorgt dat spectators altijd netjes als array bestaan
+    spectators: [], // Staat nu hier direct als lege lijst klaar
     maxStone: 12,
     boneyard: [],
     mexicanTrain: [],
@@ -43,12 +42,9 @@ function generateDeck(max) {
     return deck.sort(() => Math.random() - 0.5);
 }
 
-// Haalt het openstaande cijfer van een trein op
 function getTail(train, startNumber) {
     if (train.length === 0) return startNumber;
-    // Pak de allerlaatste steen op de trein
     const lastStone = train[train.length - 1];
-    // De tail is altijd de tweede waarde van het op de trein geplaatste array-item
     return lastStone[1]; 
 }
 
@@ -59,34 +55,27 @@ function initRound() {
     game.hasDrawn = false;
     game.requiredDouble = { active: false, value: null, targetId: null };
 
-    // Filter de centrale startsteen waterdicht uit de pot
+    // Filter startsteen eruit
     game.boneyard = game.boneyard.filter(s => !(s[0] === game.startNumber && s[1] === game.startNumber));
 
-    // REPARATIE: Officiële toernooiregels voor het aantal stenen per speler
-    let stonesPerPlayer = 11; // Standaard back-up
+    // Officiële verdeling
+    let stonesPerPlayer = 11;
     const numPlayers = game.players.length;
 
     if (game.maxStone === 12) {
-        // Officiële regels voor Dubbel 12 (91 stenen)
         if (numPlayers >= 2 && numPlayers <= 4) stonesPerPlayer = 15;
         else if (numPlayers >= 5 && numPlayers <= 6) stonesPerPlayer = 12;
         else if (numPlayers >= 7 && numPlayers <= 8) stonesPerPlayer = 11;
     } else if (game.maxStone === 15) {
-        // Officiële regels voor Dubbel 15 (136 stenen)
         if (numPlayers >= 2 && numPlayers <= 4) stonesPerPlayer = 19;
         else if (numPlayers >= 5 && numPlayers <= 6) stonesPerPlayer = 15;
         else if (numPlayers >= 7 && numPlayers <= 8) stonesPerPlayer = 13;
     } else {
-        // Dynamische berekening voor elk ander ingevuld getal (bijv. 18 of 9)
-        // Zorg dat er altijd minimaal 20-30 stenen in de pot (boneyard) overblijven
         const totalStones = game.boneyard.length;
-        const targetBoneyard = 25; 
-        stonesPerPlayer = Math.floor((totalStones - targetBoneyard) / numPlayers);
-        if (stonesPerPlayer > 20) stonesPerPlayer = 20; // Beperk de handgrootte visueel
+        stonesPerPlayer = Math.floor((totalStones - 25) / numPlayers);
+        if (stonesPerPlayer > 20) stonesPerPlayer = 20;
         if (stonesPerPlayer < 5) stonesPerPlayer = 5;
     }
-
-    console.log("Aantal spelers: " + numPlayers + ". Stenen per persoon: " + stonesPerPlayer);
 
     game.players.forEach(p => {
         game.hands[p.id] = game.boneyard.splice(0, stonesPerPlayer);
@@ -96,54 +85,30 @@ function initRound() {
 }
 
 function checkSoundTriggers(oldGame, newGame) {
-    if (oldGame.currentTurn !== newGame.currentTurn) {
-        io.emit('playSound', 'turn');
-    }
+    if (oldGame.currentTurn !== newGame.currentTurn) io.emit('playSound', 'turn');
     newGame.players.forEach(p => {
         const oldP = oldGame.players.find(x => x.id === p.id);
-        if (p.isOpen && (!oldP || !oldP.isOpen)) {
-            io.emit('playSound', 'trainOpen');
-        }
-        const newHandLen = newGame.hands[p.id] ? newGame.hands[p.id].length : 0;
-        const oldHandLen = oldGame.hands[p.id] ? oldGame.hands[p.id].length : 0;
-        if (newHandLen === 1 && oldHandLen > 1) {
-            io.emit('playSound', 'knock');
-        }
+        if (p.isOpen && (!oldP || !oldP.isOpen)) io.emit('playSound', 'trainOpen');
+        const newLen = newGame.hands[p.id] ? newGame.hands[p.id].length : 0;
+        const oldLen = oldGame.hands[p.id] ? oldGame.hands[p.id].length : 0;
+        if (newLen === 1 && oldLen > 1) io.emit('playSound', 'knock');
     });
 }
 
 io.on('connection', (socket) => {
-    
-    // Bestaande joinGame actie...
     socket.on('joinGame', (name) => {
-        if (game.started) return socket.emit('errorMsg', 'Spel is al begonnen. Je kunt wel als spectator kijken!');
+        if (game.started) return socket.emit('errorMsg', 'Spel al begonnen!');
         if (game.players.length >= 8) return socket.emit('errorMsg', 'Spel is vol.');
         game.players.push({ id: socket.id, name: name, isOpen: false, train: [], totalScore: 0 });
         socket.emit('joinSuccess');
         io.emit('updateGame', game);
     });
 
-    // NIEUW / REPARATIE: Zorgt dat toeschouwers ook tijdens een actief spel live kunnen meekijken
     socket.on('joinAsSpectator', () => {
-        // Controleer of deze persoon niet al stiekem speler is
-        const isPlayer = game.players.some(p => p.id === socket.id);
-        if (isPlayer) return socket.emit('errorMsg', 'Je doet al mee als actieve speler!');
-
-        // Voeg toe aan spectators (anoniem of met tijdelijke naam)
-        const specName = "Toeschouwer " + (game.spectators.length + 1);
+        if (game.players.some(p => p.id === socket.id)) return socket.emit('errorMsg', 'Je bent al speler!');
+        const specName = "Kijker " + (game.spectators.length + 1);
         game.spectators.push({ id: socket.id, name: specName });
-        
-        console.log(specName + " kijkt nu mee.");
-        socket.emit('joinSuccess'); // Activeert de interface-wissel
-        io.emit('updateGame', game); // Stuur direct het actieve speelbord door naar de kijker
-    });
-
-    // Zorg bij disconnect dat spectators ook worden opgeruimd
-    socket.on('disconnect', () => {
-        game.players = game.players.filter(p => p.id !== socket.id);
-        game.spectators = game.spectators.filter(s => s.id !== socket.id);
-        delete game.hands[socket.id];
-        if (game.players.length === 0) game.started = false;
+        socket.emit('joinSuccess');
         io.emit('updateGame', game);
     });
 
@@ -153,6 +118,7 @@ io.on('connection', (socket) => {
         game.currentRound = 1;
         game.gameOver = false;
         game.started = true;
+        game.spectators = game.spectators || []; // Zorg voor geldige array
         game.players.forEach(p => p.totalScore = 0);
         initRound();
         io.emit('gameStarted', game);
@@ -162,103 +128,76 @@ io.on('connection', (socket) => {
         if (game.players[game.currentTurn].id !== socket.id) return;
         if (game.hasDrawn) return socket.emit('errorMsg', 'Je hebt al gepakt!');
         if (game.boneyard.length > 0) {
-            const stone = game.boneyard.pop();
-            game.hands[socket.id].push(stone);
+            game.hands[socket.id].push(game.boneyard.pop());
             game.hasDrawn = true;
-            io.emit('updateGame', game);
         } else {
             game.hasDrawn = true;
-            io.emit('updateGame', game);
         }
+        io.emit('updateGame', game);
     });
 
     socket.on('passTurn', () => {
-        if (game.players[game.currentTurn].id !== socket.id) return;
-        if (!game.hasDrawn) return socket.emit('errorMsg', 'Eerst pakken!');
-        
+        if (game.players[game.currentTurn].id !== socket.id || !game.hasDrawn) return;
         const oldGameCopy = JSON.parse(JSON.stringify(game));
-        const player = game.players.find(p => p.id === socket.id);
-        player.isOpen = true;
+        game.players.find(p => p.id === socket.id).isOpen = true;
         game.hasDrawn = false;
         game.currentTurn = (game.currentTurn + 1) % game.players.length;
-
         checkSoundTriggers(oldGameCopy, game);
         io.emit('updateGame', game);
     });
 
     socket.on('playStone', ({ stoneIndex, targetId }) => {
-        const playerId = socket.id;
-        if (game.players[game.currentTurn].id !== playerId) return;
-
-        const hand = game.hands[playerId];
-        let stone = hand[stoneIndex]; // Dit is een array, bijv: [12, 5]
+        if (game.players[game.currentTurn].id !== socket.id) return;
+        const hand = game.hands[socket.id];
+        let stone = hand[stoneIndex];
         if (!stone) return;
 
         if (game.requiredDouble.active && targetId !== game.requiredDouble.targetId) {
-            return socket.emit('errorMsg', `Verplicht! Leg aan op de gemarkeerde dubbel.`);
+            return socket.emit('errorMsg', 'Verplicht op de dubbel!');
         }
 
         let targetTrain;
-        let isOwnTrain = (playerId === targetId);
+        let isOwnTrain = (socket.id === targetId);
 
-        if (targetId === 'mexican') {
-            targetTrain = game.mexicanTrain;
-        } else {
-            const targetPlayer = game.players.find(p => p.id === targetId);
-            if (!targetPlayer) return;
-            if (!isOwnTrain && !targetPlayer.isOpen) return socket.emit('errorMsg', 'Trein is gesloten!');
-            targetTrain = targetPlayer.train;
+        if (targetId === 'mexican') targetTrain = game.mexicanTrain;
+        else {
+            const tp = game.players.find(p => p.id === targetId);
+            if (!tp || (!isOwnTrain && !tp.isOpen)) return socket.emit('errorMsg', 'Trein gesloten!');
+            targetTrain = tp.train;
         }
 
         let tail = getTail(targetTrain, game.startNumber);
-        let finalStoneOriented = null;
+        let finalStone = null;
 
-        // OPLOSSING BUG 1: Array-cijfer validatie en automatische rotatie (omdraaien)
-        if (stone[0] === tail) {
-            finalStoneOriented = [stone[0], stone[1]]; // Sluit direct aan met de linkerkant
-        } else if (stone[1] === tail) {
-            finalStoneOriented = [stone[1], stone[0]]; // Draai de steen om zodat de rechterkant aansluit
-        } else {
-            return socket.emit('errorMsg', 'Steen sluit niet aan! Eindcijfer van deze trein moet zijn: ' + tail);
-        }
+        if (stone[0] === tail) finalStone = [stone[0], stone[1]];
+        else if (stone[1] === tail) finalStone = [stone[1], stone[0]];
+        else return socket.emit('errorMsg', 'Sluit niet aan! Moet eindigen op: ' + tail);
 
         const oldGameCopy = JSON.parse(JSON.stringify(game));
-        
-        // Push de juist georiënteerde steen naar de trein array
-        targetTrain.push(finalStoneOriented);
+        targetTrain.push(finalStone);
         hand.splice(stoneIndex, 1);
 
-        if (isOwnTrain) {
-            game.players.find(p => p.id === playerId).isOpen = false;
-        }
+        if (isOwnTrain) game.players.find(p => p.id === socket.id).isOpen = false;
 
-        // Check einde ronde
         if (hand.length === 0) {
             game.players.forEach(p => {
                 const pHand = game.hands[p.id] || [];
-                const penalty = pHand.reduce((sum, s) => sum + s[0] + s[1], 0);
-                p.totalScore += penalty;
+                p.totalScore += pHand.reduce((sum, s) => sum + s[0] + s[1], 0);
             });
-            const winnerName = game.players[game.currentTurn].name;
             if (game.startNumber > 0) {
-                game.startNumber -= 1;
-                game.currentRound += 1;
-                initRound();
-                io.emit('roundEnded', { winner: winnerName, nextRoundReady: true, game: game });
+                game.startNumber -= 1; game.currentRound += 1; initRound();
+                io.emit('roundEnded', { winner: game.players[game.currentTurn].name, nextRoundReady: true, game: game });
             } else {
-                game.started = false;
-                game.gameOver = true;
+                game.started = false; game.gameOver = true;
                 const sorted = [...game.players].sort((a,b) => a.totalScore - b.totalScore);
-                io.emit('roundEnded', { winner: winnerName, nextRoundReady: false, champion: sorted[0].name, game: game });
+                io.emit('roundEnded', { winner: game.players[game.currentTurn].name, nextRoundReady: false, champion: sorted[0].name, game: game });
             }
             return;
         }
 
-        // Check of de zojuist gelegde steen een dubbelsteen was
-        const isDouble = (finalStoneOriented[0] === finalStoneOriented[1]);
-        if (isDouble) {
-            game.requiredDouble = { active: true, value: finalStoneOriented[0], targetId: targetId };
-            game.hasDrawn = false; // Je krijgt direct een extra beurt om hem dicht te leggen
+        if (finalStone[0] === finalStone[1]) {
+            game.requiredDouble = { active: true, value: finalStone, targetId: targetId };
+            game.hasDrawn = false;
         } else {
             game.requiredDouble = { active: false, value: null, targetId: null };
             game.hasDrawn = false;
@@ -272,13 +211,14 @@ io.on('connection', (socket) => {
     socket.on('reorderHand', ({ fromIndex, toIndex }) => {
         const hand = game.hands[socket.id];
         if (!hand) return;
-        const [movedStone] = hand.splice(fromIndex, 1);
-        hand.splice(toIndex, 0, movedStone);
+        const [moved] = hand.splice(fromIndex, 1);
+        hand.splice(toIndex, 0, moved);
         io.emit('updateGame', game);
     });
 
     socket.on('disconnect', () => {
         game.players = game.players.filter(p => p.id !== socket.id);
+        if(game.spectators) game.spectators = game.spectators.filter(s => s.id !== socket.id);
         delete game.hands[socket.id];
         if (game.players.length === 0) game.started = false;
         io.emit('updateGame', game);
@@ -286,4 +226,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server gestart op poort ${PORT}`));
+server.listen(PORT, () => console.log(`Poort: ${PORT}`));
