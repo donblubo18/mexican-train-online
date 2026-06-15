@@ -1,33 +1,51 @@
+console.log("Mexican Train: app.js succesvol geladen!");
+
+// OPLOSSING: Geluidseffecten ALTIJD als allereerste aanmaken (bovenaan het script)
+const audioTurn = new Audio('https://mixkit.co'); 
+const audioTrainOpen = new Audio('https://mixkit.co'); 
+const audioKnock = new Audio('https://mixkit.co'); 
+
 const socket = io();
 let selectedStoneIndex = null;
 let selectedTrainId = null;
 let draggedStoneIndex = null;
 
-// Geluidseffecten
-const audioTurn = new Audio('https://mixkit.co'); 
-const audioTrainOpen = new Audio('https://mixkit.co'); 
-const audioKnock = new Audio('https://mixkit.co'); 
-
 function unlockAudio() {
+    console.log("Audio proberen te ontgrendelen...");
     audioTurn.play().then(() => { audioTurn.pause(); audioTurn.currentTime = 0; }).catch(() => {});
     audioTrainOpen.play().then(() => { audioTrainOpen.pause(); audioTrainOpen.currentTime = 0; }).catch(() => {});
     audioKnock.play().then(() => { audioKnock.pause(); audioKnock.currentTime = 0; }).catch(() => {});
 }
 
-if (sessionStorage.getItem('mexicanTrainJoined')) {
-    const nameInp = document.getElementById('nameInp');
-    if (nameInp) nameInp.disabled = true;
-}
+// Controleer direct bij laden van de pagina
+try {
+    if (sessionStorage.getItem('mexicanTrainJoined')) {
+        const nameInp = document.getElementById('nameInp');
+        if (nameInp) nameInp.disabled = true;
+        console.log("Browser herkent eerdere join in deze sessie.");
+    }
+} catch(e) { console.error("Fout bij laden van sessie:", e); }
 
 function join() {
-    unlockAudio();
+    console.log("Join functie aangeroepen!");
+    unlockAudio(); // Werkt nu vlekkeloos omdat audioTurn hierboven al bestaat
+    
     if (sessionStorage.getItem('mexicanTrainJoined')) {
         alert("Je doet al mee aan dit spel vanaf deze browser!");
         return;
     }
+    
     const nameInp = document.getElementById('nameInp');
-    const name = nameInp ? nameInp.value.trim() : "";
+    if (!nameInp) {
+        console.error("Fout: Element 'nameInp' niet gevonden in de HTML!");
+        return;
+    }
+    
+    const name = nameInp.value.trim();
+    console.log("Ingevulde naam:", name);
+    
     if (name) {
+        console.log("Signaal 'joinGame' versturen naar server voor:", name);
         socket.emit('joinGame', name);
     } else {
         alert("Vul eerst een naam in!");
@@ -35,6 +53,7 @@ function join() {
 }
 
 function start() {
+    console.log("Start functie aangeroepen!");
     unlockAudio();
     const maxInp = document.getElementById('maxStoneInp');
     const max = maxInp ? maxInp.value : "12";
@@ -42,12 +61,13 @@ function start() {
         alert("Vul een geldig getal in!");
         return;
     }
+    console.log("Signaal 'startGame' versturen naar server met max stenen:", max);
     socket.emit('startGame', parseInt(max));
 }
 
-function spectate() { unlockAudio(); socket.emit('joinAsSpectator'); }
-function draw() { socket.emit('drawStone'); }
-function pass() { socket.emit('passTurn'); }
+function spectate() { console.log("Spectate aangeroepen"); unlockAudio(); socket.emit('joinAsSpectator'); }
+function draw() { console.log("Draw aangeroepen"); socket.emit('drawStone'); }
+function pass() { console.log("Pass aangeroepen"); socket.emit('passTurn'); }
 
 function selectStone(index, displayValue) {
     selectedStoneIndex = index;
@@ -71,14 +91,8 @@ function checkAndExecute() {
     }
 }
 
-function handleDragStart(e, index) {
-    draggedStoneIndex = index;
-    e.dataTransfer.effectAllowed = 'move';
-}
-function handleDragOver(e) {
-    if (e.preventDefault) e.preventDefault();
-    return false;
-}
+function handleDragStart(e, index) { draggedStoneIndex = index; e.dataTransfer.effectAllowed = 'move'; }
+function handleDragOver(e) { if (e.preventDefault) e.preventDefault(); return false; }
 function handleDrop(e, targetIndex) {
     if (e.stopPropagation) e.stopPropagation();
     if (draggedStoneIndex !== null && draggedStoneIndex !== targetIndex) {
@@ -88,6 +102,7 @@ function handleDrop(e, targetIndex) {
 }
 
 socket.on('joinSuccess', () => {
+    console.log("Server keurt join goed!");
     sessionStorage.setItem('mexicanTrainJoined', 'true');
     const lobbyJoinBtn = document.getElementById('lobbyJoinBtn');
     if (lobbyJoinBtn) lobbyJoinBtn.disabled = true;
@@ -96,14 +111,17 @@ socket.on('joinSuccess', () => {
 socket.on('errorMsg', (msg) => alert(msg));
 
 socket.on('playSound', (type) => {
+    console.log("Geluidssignaal ontvangen:", type);
     if (type === 'turn') audioTurn.play().catch(() => {});
     if (type === 'trainOpen') audioTrainOpen.play().catch(() => {});
     if (type === 'knock') audioKnock.play().catch(() => {});
 });
 
 socket.on('updateGame', (game) => {
+    console.log("Centrale game-update ontvangen van server:", game);
     if (!game || !game.players) return;
 
+    // Update de wachtruimte / lobby lijst
     const list = document.getElementById('playerList');
     if (list) {
         list.innerHTML = "";
@@ -128,7 +146,11 @@ socket.on('updateGame', (game) => {
         if (lobbySpectateBtn) lobbySpectateBtn.disabled = false;
     }
 
-    if (!game.started && !game.gameOver) return;
+    // Als het spel nog niet gestart is, stop hier veilig
+    if (!game.started && !game.gameOver) {
+        console.log("Spel is nog in de lobby-fase. Rest van interface-opbouw overgeslagen.");
+        return;
+    }
 
     const lobbyDiv = document.getElementById('lobby');
     const boardDiv = document.getElementById('board');
@@ -219,52 +241,55 @@ socket.on('updateGame', (game) => {
             const titleSpan = document.createElement("div");
             titleSpan.className = "title " + (p.id === socket.id ? "me" : "");
             titleSpan.innerText = p.name;
-
             const scoreSpan = document.createElement("div");
-            scoreSpan.className = "score-stn";
-            scoreSpan.innerText = p.totalScore + " pnt  |  " + handLength + " stn";
-            
-            const statusSpan = document.createElement("div");
-            statusSpan.className = "status-badge " + (p.isOpen ? "open" : "");
-            statusSpan.innerText = p.isOpen ? "🔓 OPEN" : "🔒 PRIVÉ";
+scoreSpan.className = "score-stn";
+scoreSpan.innerText = p.totalScore + " pnt  |  " + handLength + " stn";
 
-            colHeader.appendChild(titleSpan);
-            colHeader.appendChild(scoreSpan);
-            colHeader.appendChild(statusSpan);
+const statusSpan = document.createElement("div");
+statusSpan.className = "status-badge " + (p.isOpen ? "open" : "");
+statusSpan.innerText = p.isOpen ? "🔓 OPEN" : "🔒 PRIVÉ";
 
-            if (handLength === 1) {
-                const bounceBadge = document.createElement("div");
-                bounceBadge.className = "bounce-badge";
-                bounceBadge.innerText = "1 STEEN";
-                colHeader.appendChild(bounceBadge);
-            }
+colHeader.appendChild(titleSpan);
+colHeader.appendChild(scoreSpan);
+colHeader.appendChild(statusSpan);
 
-            const stonesScrollDiv = document.createElement("div");
-            stonesScrollDiv.className = "stones-scroll-area no-scrollbar";
+if (handLength === 1) {
+    const bounceBadge = document.createElement("div");
+    bounceBadge.className = "bounce-badge";
+    bounceBadge.innerText = "1 STEEN";
+    colHeader.appendChild(bounceBadge);
+}
 
-            if (p.train) {
-                p.train.forEach((s) => {
-                    if (!Array.isArray(s)) return;
-                    const stoneBox = document.createElement("div");
-                    stoneBox.className = "track-stone";
-                    const top = document.createElement("span"); top.innerText = s[0];
+const stonesScrollDiv = document.createElement("div");
+stonesScrollDiv.className = "stones-scroll-area no-scrollbar";
+
+if (p.train) {
+    p.train.forEach((s) => {
+        if (!Array.isArray(s)) return;
+        const stoneBox = document.createElement("div");
+        stoneBox.className = "track-stone";
+
+        const top = document.createElement("span"); 
+        top.innerText = s[0];
+
         const line = document.createElement("div"); 
         line.className = "line";
-        
+
         const bot = document.createElement("span"); 
         bot.innerText = s[1];
-        
+
         stoneBox.appendChild(top); 
         stoneBox.appendChild(line); 
         stoneBox.appendChild(bot);
         stonesScrollDiv.appendChild(stoneBox);
     });
 }
-    colDiv.appendChild(colHeader);
-    colDiv.appendChild(stonesScrollDiv);
-    tracksContainer.appendChild(colDiv);
-});
-}
+
+colDiv.appendChild(colHeader);
+colDiv.appendChild(stonesScrollDiv);
+tracksContainer.appendChild(colDiv);
+}); // Sluiting van de p.train of spelers loop
+} // Sluiting van de bovenliggende check/functie
 
 // 4. HAND & KNOOPSTATUS
 const drawBtn = document.getElementById('drawBtn');
@@ -345,3 +370,4 @@ socket.on('roundEnded', ({ winner, nextRoundReady, champion, game }) => {
     
     if(game) socket.emit('updateGame', game);
 });
+
