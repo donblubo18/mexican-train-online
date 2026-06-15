@@ -1,12 +1,8 @@
-console.log("Mexican Train: app.js succesvol geladen!");
-
-// 1. Geluidseffecten
+console.log("Mexican Train: app.js geladen!");
 const audioTurn = new Audio('https://mixkit.co'); 
 const audioTrainOpen = new Audio('https://mixkit.co'); 
 const audioKnock = new Audio('https://mixkit.co'); 
 
-// OPLOSSING BUG: Laat io() HELEMAAL LEEG. Geen url invullen! 
-// Hierdoor zoekt Render automatisch de juiste beveiligde poort op.
 let socket = typeof io !== 'undefined' ? io() : null;
 let selectedStoneIndex = null, selectedTrainId = null, draggedStoneIndex = null;
 
@@ -33,7 +29,7 @@ function start() {
     unlockAudio();
     if (!socket) return alert("Geen serververbinding.");
     const max = document.getElementById('maxStoneInp') ? document.getElementById('maxStoneInp').value : "12";
-    if (!max || isNaN(max) || parseInt(max) < 1) return alert("Vul een geldig getal in!");
+    if (!max || isNaN(max) || parseInt(max) < 1) return alert("Vul een getal in!");
     socket.emit('startGame', parseInt(max));
 }
 
@@ -61,6 +57,7 @@ function handleDrop(e, targetIdx) {
     draggedStoneIndex = null;
 }
 function createStoneEl(s, isHandCard, idx) {
+    if (!Array.isArray(s)) return document.createElement("div");
     const btn = document.createElement(isHandCard ? "button" : "div");
     btn.className = isHandCard ? "domino" : "track-stone";
     if (isHandCard) {
@@ -68,7 +65,7 @@ function createStoneEl(s, isHandCard, idx) {
         btn.ondragstart = (e) => handleDragStart(e, idx);
         btn.ondragover = (e) => handleDragOver(e);
         btn.ondrop = (e) => handleDrop(e, idx);
-        btn.onclick = () => selectStone(idx, s.join("|"));
+        btn.onclick = () => selectStone(idx, s[0] + "|" + s[1]);
     }
     btn.innerHTML = "<span>" + s[0] + "</span><div class='line'></div><span>" + s[1] + "</span>";
     return btn;
@@ -177,7 +174,9 @@ if (socket) {
         }
         const handDiv = document.getElementById('myHand');
         if (handDiv) {
-            handDiv.innerHTML = ""; handDiv.style = "display:flex; flex-direction:row; flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; padding:5px;";
+            handDiv.innerHTML = ""; 
+            // OPLOSSING WEERGAVE: Hand schuift nu altijd netjes horizontaal door bij veel stenen
+            handDiv.style = "display:flex !important; flex-direction:row !important; flex-wrap:nowrap !important; overflow-x:auto !important; justify-content:flex-start !important; padding:5px; width:100%; box-sizing:border-box;";
             const myHand = game.hands && game.hands[socket.id] ? game.hands[socket.id] : [];
             myHand.forEach((s, idx) => { if (Array.isArray(s)) handDiv.appendChild(createStoneEl(s, true, idx)); });
         }
