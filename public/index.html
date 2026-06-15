@@ -40,7 +40,7 @@
         .column-header .status-badge.open { background-color: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
 
         .stones-scroll-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px; min-height: 0; }
-        .track-stone { background: #ffffff; color: #111111; padding: 6px; border-radius: 6px; font-size: 16px; font-weight: bold; border: 2px solid #475569; text-align: center; width: 42px; height: 65px; display: flex; flex-direction: column; items-center: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.2); flex-shrink: 0; box-sizing: border-box; }
+        .track-stone { background: #ffffff; color: #111111; padding: 6px; border-radius: 6px; font-size: 16px; font-weight: bold; border: 2px solid #475569; text-align: center; width: 42px; height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.2); flex-shrink: 0; box-sizing: border-box; }
         .track-stone .line { width: 100%; border-top: 2px solid #94a3b8; margin: 3px 0; }
 
         footer { background-color: #020617; border-top: 4px solid #000000; padding: 15px; flex-shrink: 0; z-index: 10; }
@@ -120,6 +120,8 @@
         </footer>
     </div>
 
+    <!-- HIER STAAT NU DE CDN LINK DIE DE BROWSER REPAREERT -->
+    <script src="https://socket.io"></script>
     <script src="app.js"></script>
 </body>
 </html>
