@@ -1,14 +1,14 @@
 console.log("Mexican Train: app.js succesvol geladen!");
 
-// Geluidseffecten ALTIJD bovenaan
+// 1. Geluidseffecten direct bovenaan aanmaken
 const audioTurn = new Audio('https://mixkit.co'); 
 const audioTrainOpen = new Audio('https://mixkit.co'); 
 const audioKnock = new Audio('https://mixkit.co'); 
 
-// OPLOSSING CORS BUG: io() leeg laten zodat hij automatisch de eigen Render-app gebruikt!
+// 2. Failsafe verbinding leggen met jouw specifieke Render url
 let socket;
 if (typeof io !== 'undefined') {
-    socket = io(); 
+    socket = io("https://onrender.com");
     console.log("Verbinding met Render spelserver succesvol opgezet!");
 } else {
     console.error("CRITIEKE FOUT: Socket.io kon niet vanaf Render ingeladen worden.");
@@ -57,6 +57,7 @@ function start() {
 }
 
 function spectate() { unlockAudio(); if(socket) socket.emit('joinAsSpectator'); }
+// Pak/Pass functies aangeroepen door de knoppen
 function draw() { if(socket) socket.emit('drawStone'); }
 function pass() { if(socket) socket.emit('passTurn'); }
 
@@ -111,26 +112,22 @@ if (socket) {
 
         // Lobby wachtlijst renderen
         const list = document.getElementById('playerList');
-            if (list) {
-                list.innerHTML = "";
-                
-                // Toon actieve spelers
-                game.players.forEach(p => {
-                    const item = document.createElement("li");
-                    item.innerText = p.name + " (Totaal: " + p.totalScore + " pnt)";
-                    list.appendChild(item);
-                });
-                
-                // REPARATIE: Controleer veilig of er spectators zijn zonder te crashen als de lijst leeg is
-                if (game.spectators && game.spectators.length > 0) {
-                    const specItem = document.createElement("li");
-                    specItem.style.color = "#94a3b8";
-                    specItem.style.marginTop = "10px";
-                    specItem.style.listStyleType = "none";
-                    specItem.innerText = "👀 Kijkers: " + game.spectators.map(s => s.name).join(', ');
-                    list.appendChild(specItem);
-                }
+        if (list) {
+            list.innerHTML = "";
+            game.players.forEach(p => {
+                const item = document.createElement("li");
+                item.innerText = p.name + " (Totaal: " + p.totalScore + " pnt)";
+                list.appendChild(item);
+            });
+            if (game.spectators && game.spectators.length > 0) {
+                const specItem = document.createElement("li");
+                specItem.style.color = "#94a3b8";
+                specItem.style.marginTop = "10px";
+                specItem.style.listStyleType = "none";
+                specItem.innerText = "👀 Kijkers: " + game.spectators.map(s => s.name).join(', ');
+                list.appendChild(specItem);
             }
+        }
 
         const lobbyJoinBtn = document.getElementById('lobbyJoinBtn');
         const lobbyStartBtn = document.getElementById('lobbyStartBtn');
@@ -161,7 +158,7 @@ if (socket) {
         if (centerLabel) centerLabel.innerText = game.startNumber + '|' + game.startNumber;
         if (boneyardLabel) boneyardLabel.innerText = game.boneyard ? game.boneyard.length : 0;
 
-        // A. Bovendste spelerbalk opbouwen
+        // A. Bovenste spelerbalk opbouwen (Nette score weergave)
         const headerRow = document.getElementById('playerHeaderRow');
         if (headerRow) {
             headerRow.innerHTML = "";
@@ -173,7 +170,7 @@ if (socket) {
                 pBox.className = "player-status-card " + (isCurrent ? "active" : "");
 
                 const nameSpan = document.createElement("span");
-                nameSpan.innerText = (p.id === socket.id ? "⭐ " : "") + p.name;
+                nameSpan.innerText = p.name;
 
                 const statsSpan = document.createElement("div");
                 statsSpan.className = "stats";
@@ -209,26 +206,28 @@ if (socket) {
                 if (!Array.isArray(s)) return;
                 const stoneBox = document.createElement("div");
                 stoneBox.className = "track-stone";
-                
                 const top = document.createElement("span"); top.innerText = s[0];
                 const line = document.createElement("div"); line.className = "line";
                 const bot = document.createElement("span"); bot.innerText = s[1];
-                
                 stoneBox.appendChild(top); stoneBox.appendChild(line); stoneBox.appendChild(bot);
                 mexTrack.appendChild(stoneBox);
             });
         }
-
-        // C. Verticale spelerstreinen kolommen renderen
+        // C. Verticale spelerstreinen kolommen renderen (MET STERRETJE VOOR DE BEURT)
         const tracksContainer = document.getElementById('playerTracksContainer');
         if (tracksContainer) {
             tracksContainer.innerHTML = "";
-            game.players.forEach(p => {
+            game.players.forEach((p, idx) => {
+                const isCurrentTurn = game.currentTurn === idx; 
                 const isTargetDouble = game.requiredDouble && game.requiredDouble.active === true && game.requiredDouble.targetId === p.id;
                 const handLength = game.hands && game.hands[p.id] ? game.hands[p.id].length : 0;
 
                 const colDiv = document.createElement("div");
                 colDiv.className = "train-column " + (isTargetDouble ? "double-highlight" : "");
+                if (isCurrentTurn) {
+                    colDiv.style.borderTop = "4px solid #f59e0b";
+                    colDiv.style.backgroundColor = "rgba(245, 158, 11, 0.03)";
+                }
                 colDiv.onclick = () => selectTrain(p.id);
 
                 const colHeader = document.createElement("div");
@@ -236,7 +235,7 @@ if (socket) {
                 
                 const titleSpan = document.createElement("div");
                 titleSpan.className = "title " + (p.id === socket.id ? "me" : "");
-                titleSpan.innerText = p.name;
+                titleSpan.innerText = (isCurrentTurn ? "⭐ " : "") + p.name; // Sterretje bij actieve trein kop
 
                 const scoreSpan = document.createElement("div");
                 scoreSpan.className = "score-stn";
@@ -268,7 +267,6 @@ if (socket) {
                         const top = document.createElement("span"); top.innerText = s[0];
                         const line = document.createElement("div"); line.className = "line";
                         const bot = document.createElement("span"); bot.innerText = s[1];
-                        
                         stoneBox.appendChild(top); stoneBox.appendChild(line); stoneBox.appendChild(bot);
                         stonesScrollDiv.appendChild(stoneBox);
                     });
@@ -304,10 +302,17 @@ if (socket) {
             }
         }
 
-        // E. Hand onderaan renderen
+        // E. Hand onderaan renderen met automatische scroll
         const handDiv = document.getElementById('myHand');
         if (handDiv) {
             handDiv.innerHTML = "";
+            handDiv.style.display = "flex";
+            handDiv.style.flexDirection = "row";
+            handDiv.style.flexWrap = "nowrap";
+            handDiv.style.overflowX = "auto";
+            handDiv.style.justifyContent = "flex-start";
+            handDiv.style.padding = "5px";
+
             const myHand = game.hands && game.hands[socket.id] ? game.hands[socket.id] : [];
 
             myHand.forEach((s, idx) => {
@@ -318,33 +323,22 @@ if (socket) {
                 
                 btn.ondragstart = (e) => handleDragStart(e, idx);
                 btn.ondragover = (e) => handleDragOver(e);
-                // Handenopbouw (Sluitstuk van de myHand loop)
                 btn.ondrop = function(e) { handleDrop(e, idx); };
                 btn.onclick = function() { selectStone(idx, s.join("|")); };
 
-                const topSpan = document.createElement("span"); 
-                topSpan.innerText = s[0];
-                
-                const line = document.createElement("div"); 
-                line.className = "line";
-                
-                const botSpan = document.createElement("span"); 
-                botSpan.innerText = s[1];
+                const topSpan = document.createElement("span"); topSpan.innerText = s[0];
+                const line = document.createElement("div"); line.className = "line";
+                const botSpan = document.createElement("span"); botSpan.innerText = s[1];
 
-                btn.appendChild(topSpan); 
-                btn.appendChild(line); 
-                btn.appendChild(botSpan);
+                btn.appendChild(topSpan); btn.appendChild(line); btn.appendChild(botSpan);
                 handDiv.appendChild(btn);
             });
         }
     });
 
-    // Globale netwerk luisteraars voor het spelverloop
-    socket.on('gameStarted', function(game) { 
-        if (game) socket.emit('updateGame', game); 
-    });
+    socket.on('gameStarted', (game) => { if(game) socket.emit('updateGame', game); });
 
-    socket.on('roundEnded', function(data) {
+    socket.on('roundEnded', (data) => {
         if (data.nextRoundReady) {
             alert("Ronde voorbij! " + data.winner + " heeft uitgespeeld.\n\nVolgende ronde start met Dubbel " + data.game.startNumber + ".");
         } else {
