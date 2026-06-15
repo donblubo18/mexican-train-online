@@ -19,6 +19,7 @@ app.use(express.static('public'));
 
 let game = {
     players: [],
+    spectators: [], // REPARATIE: Zorgt dat spectators altijd netjes als array bestaan
     maxStone: 12,
     boneyard: [],
     mexicanTrain: [],
@@ -91,10 +92,37 @@ function checkSoundTriggers(oldGame, newGame) {
 }
 
 io.on('connection', (socket) => {
+    
+    // Bestaande joinGame actie...
     socket.on('joinGame', (name) => {
-        if (game.started) return socket.emit('errorMsg', 'Spel is al begonnen.');
+        if (game.started) return socket.emit('errorMsg', 'Spel is al begonnen. Je kunt wel als spectator kijken!');
         if (game.players.length >= 8) return socket.emit('errorMsg', 'Spel is vol.');
         game.players.push({ id: socket.id, name: name, isOpen: false, train: [], totalScore: 0 });
+        socket.emit('joinSuccess');
+        io.emit('updateGame', game);
+    });
+
+    // NIEUW / REPARATIE: Zorgt dat toeschouwers ook tijdens een actief spel live kunnen meekijken
+    socket.on('joinAsSpectator', () => {
+        // Controleer of deze persoon niet al stiekem speler is
+        const isPlayer = game.players.some(p => p.id === socket.id);
+        if (isPlayer) return socket.emit('errorMsg', 'Je doet al mee als actieve speler!');
+
+        // Voeg toe aan spectators (anoniem of met tijdelijke naam)
+        const specName = "Toeschouwer " + (game.spectators.length + 1);
+        game.spectators.push({ id: socket.id, name: specName });
+        
+        console.log(specName + " kijkt nu mee.");
+        socket.emit('joinSuccess'); // Activeert de interface-wissel
+        io.emit('updateGame', game); // Stuur direct het actieve speelbord door naar de kijker
+    });
+
+    // Zorg bij disconnect dat spectators ook worden opgeruimd
+    socket.on('disconnect', () => {
+        game.players = game.players.filter(p => p.id !== socket.id);
+        game.spectators = game.spectators.filter(s => s.id !== socket.id);
+        delete game.hands[socket.id];
+        if (game.players.length === 0) game.started = false;
         io.emit('updateGame', game);
     });
 
