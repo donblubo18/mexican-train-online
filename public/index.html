@@ -69,9 +69,9 @@
             <label>Maximale Steen (Aantal ogen)</label>
             <input id="maxStoneInp" type="number" value="12">
         </div>
-        <button onclick="join()" class="btn btn-yellow">Deelnemen</button>
-        <button onclick="spectate()" class="btn btn-slate">Kijken (Spectator)</button>
-        <button onclick="start()" class="btn btn-emerald">Spel Starten voor iedereen</button>
+        <button id="lobbyJoinBtn" onclick="join()" class="btn btn-yellow">Deelnemen</button>
+        <button id="lobbySpectateBtn" onclick="spectate()" class="btn btn-slate">Kijken (Spectator)</button>
+        <button id="lobbyStartBtn" onclick="start()" class="btn btn-emerald">Spel Starten voor iedereen</button>
         <div style="margin-top: 20px; border-top: 1px solid #334155; padding-top: 15px;">
             <h3 style="font-size: 14px; color: #94a3b8; margin-bottom: 8px;">Wachtruimte:</h3>
             <ul id="playerList" style="padding-left: 20px; margin: 0; color: #cbd5e1; font-size: 14px;"></ul>
