@@ -1,14 +1,14 @@
 console.log("Mexican Train: app.js succesvol geladen!");
 
-// 1. Geluidseffecten direct bovenaan aanmaken
+// Geluidseffecten ALTIJD bovenaan
 const audioTurn = new Audio('https://mixkit.co'); 
 const audioTrainOpen = new Audio('https://mixkit.co'); 
 const audioKnock = new Audio('https://mixkit.co'); 
 
-// 2. Failsafe verbinding leggen met jouw specifieke Render url
+// OPLOSSING CORS BUG: io() leeg laten zodat hij automatisch de eigen Render-app gebruikt!
 let socket;
 if (typeof io !== 'undefined') {
-    socket = io("https://onrender.com");
+    socket = io(); 
     console.log("Verbinding met Render spelserver succesvol opgezet!");
 } else {
     console.error("CRITIEKE FOUT: Socket.io kon niet vanaf Render ingeladen worden.");
