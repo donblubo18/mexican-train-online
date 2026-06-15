@@ -102,7 +102,6 @@ socket.on('playSound', (type) => {
 });
 
 socket.on('updateGame', (game) => {
-    // Failsafe checks voor data vanuit de server
     if (!game || !game.players) return;
 
     const list = document.getElementById('playerList');
@@ -189,6 +188,7 @@ socket.on('updateGame', (game) => {
     if (mexTrack && game.mexicanTrain) {
         mexTrack.innerHTML = "";
         game.mexicanTrain.forEach((s) => {
+            if (!Array.isArray(s)) return;
             const stoneBox = document.createElement("div");
             stoneBox.className = "track-stone";
             
@@ -244,10 +244,13 @@ socket.on('updateGame', (game) => {
 
             if (p.train) {
                 p.train.forEach((s) => {
+                    if (!Array.isArray(s)) return;
                     const stoneBox = document.createElement("div");
                     stoneBox.className = "track-stone";
                     const top = document.createElement("span"); top.innerText = s[0];
-                    const line = document.createElement("div"); line.className = "line";
+        const line = document.createElement("div"); 
+        line.className = "line";
+        
         const bot = document.createElement("span"); 
         bot.innerText = s[1];
         
@@ -294,6 +297,8 @@ if (handDiv) {
     const myHand = game.hands && game.hands[socket.id] ? game.hands[socket.id] : [];
     
     myHand.forEach((s, idx) => {
+        if (!Array.isArray(s)) return;
+        
         const btn = document.createElement("button");
         btn.className = "domino";
         btn.draggable = true;
