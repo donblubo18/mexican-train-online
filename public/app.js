@@ -1,17 +1,16 @@
 console.log("Mexican Train: app.js succesvol geladen!");
 
-// Geluidseffecten ALTIJD bovenaan
 const audioTurn = new Audio('https://mixkit.co'); 
 const audioTrainOpen = new Audio('https://mixkit.co'); 
 const audioKnock = new Audio('https://mixkit.co'); 
 
-// Failsafe socket initialisatie: controleer of 'io' bestaat
+// REPARATIE: Verbind direct met jouw live Render url
 let socket;
 if (typeof io !== 'undefined') {
-    socket = io();
-    console.log("Verbinding met de spelserver succesvol opgezet!");
+    socket = io("https://mexican-train-online-xvkk.onrender.com/");
+    console.log("Verbinding met Render spelserver succesvol opgezet!");
 } else {
-    console.error("CRITIEKE FOUT: Socket.io is niet geladen door de browser! Zorg dat je de site opent via http://localhost:3000");
+    console.error("CRITIEKE FOUT: Socket.io kon niet vanaf Render ingeladen worden.");
 }
 
 let selectedStoneIndex = null;
@@ -25,7 +24,6 @@ function unlockAudio() {
     audioKnock.play().then(() => { audioKnock.pause(); audioKnock.currentTime = 0; }).catch(() => {});
 }
 
-// Controleer direct bij laden van de pagina
 try {
     if (sessionStorage.getItem('mexicanTrainJoined')) {
         const nameInp = document.getElementById('nameInp');
@@ -39,7 +37,7 @@ function join() {
     unlockAudio();
     
     if (!socket) {
-        alert("Kan geen verbinding maken met de server. Open de site via http://localhost:3000 of herstart node server.js!");
+        alert("Geen verbinding met de server. Probeer de pagina te vernieuwen!");
         return;
     }
     
@@ -49,16 +47,10 @@ function join() {
     }
     
     const nameInp = document.getElementById('nameInp');
-    if (!nameInp) {
-        console.error("Fout: Element 'nameInp' niet gevonden in de HTML!");
-        return;
-    }
+    if (!nameInp) return;
     
     const name = nameInp.value.trim();
-    console.log("Ingevulde naam:", name);
-    
     if (name) {
-        console.log("Signaal 'joinGame' versturen naar server voor:", name);
         socket.emit('joinGame', name);
     } else {
         alert("Vul eerst een naam in!");
@@ -66,7 +58,6 @@ function join() {
 }
 
 function start() {
-    console.log("Start functie aangeroepen!");
     unlockAudio();
     if (!socket) return alert("Geen serververbinding.");
     const maxInp = document.getElementById('maxStoneInp');
@@ -75,13 +66,12 @@ function start() {
         alert("Vul een geldig getal in!");
         return;
     }
-    console.log("Signaal 'startGame' versturen naar server met max stenen:", max);
     socket.emit('startGame', parseInt(max));
 }
 
-function spectate() { console.log("Spectate aangeroepen"); unlockAudio(); if(socket) socket.emit('joinAsSpectator'); }
-function draw() { console.log("Draw aangeroepen"); if(socket) socket.emit('drawStone'); }
-function pass() { console.log("Pass aangeroepen"); if(socket) socket.emit('passTurn'); }
+function spectate() { unlockAudio(); if(socket) socket.emit('joinAsSpectator'); }
+function draw() { if(socket) socket.emit('drawStone'); }
+function pass() { if(socket) socket.emit('passTurn'); }
 
 function selectStone(index, displayValue) {
     selectedStoneIndex = index;
@@ -117,7 +107,6 @@ function handleDrop(e, targetIndex) {
 
 if (socket) {
     socket.on('joinSuccess', () => {
-        console.log("Server keurt join goed!");
         sessionStorage.setItem('mexicanTrainJoined', 'true');
         const lobbyJoinBtn = document.getElementById('lobbyJoinBtn');
         if (lobbyJoinBtn) lobbyJoinBtn.disabled = true;
@@ -126,14 +115,12 @@ if (socket) {
     socket.on('errorMsg', (msg) => alert(msg));
 
     socket.on('playSound', (type) => {
-        console.log("Geluidssignaal ontvangen:", type);
         if (type === 'turn') audioTurn.play().catch(() => {});
         if (type === 'trainOpen') audioTrainOpen.play().catch(() => {});
         if (type === 'knock') audioKnock.play().catch(() => {});
     });
 
     socket.on('updateGame', (game) => {
-        console.log("Centrale game-update ontvangen van server:", game);
         if (!game || !game.players) return;
 
         const list = document.getElementById('playerList');
@@ -160,10 +147,7 @@ if (socket) {
             if (lobbySpectateBtn) lobbySpectateBtn.disabled = false;
         }
 
-        if (!game.started && !game.gameOver) {
-            console.log("Spel is noch in de lobby-fase.");
-            return;
-        }
+        if (!game.started && !game.gameOver) return;
 
         const lobbyDiv = document.getElementById('lobby');
         const boardDiv = document.getElementById('board');
@@ -241,28 +225,27 @@ if (socket) {
                 const isTargetDouble = game.requiredDouble && game.requiredDouble.active === true && game.requiredDouble.targetId === p.id;
                 const handLength = game.hands && game.hands[p.id] ? game.hands[p.id].length : 0;
 
-const colDiv = document.createElement("div");
-colDiv.className = "train-column " + (isTargetDouble ? "double-highlight" : "");
-colDiv.onclick = () => selectTrain(p.id);
+                const colDiv = document.createElement("div");
+                colDiv.className = "train-column " + (isTargetDouble ? "double-highlight" : "");
+                colDiv.onclick = () => selectTrain(p.id);
 
-const colHeader = document.createElement("div");
-colHeader.className = "column-header";
+                const colHeader = document.createElement("div");
+                colHeader.className = "column-header";
+                
+                const titleSpan = document.createElement("div");
+                titleSpan.className = "title " + (p.id === socket.id ? "me" : "");
+                titleSpan.innerText = p.name;
+                const scoreSpan = document.createElement("div");
+                scoreSpan.className = "score-stn";
+                scoreSpan.innerText = p.totalScore + " pnt  |  " + handLength + " stn";
 
-const titleSpan = document.createElement("div");
-titleSpan.className = "title " + (p.id === socket.id ? "me" : "");
-titleSpan.innerText = p.name;
+                const statusSpan = document.createElement("div");
+                statusSpan.className = "status-badge " + (p.isOpen ? "open" : "");
+                statusSpan.innerText = p.isOpen ? "🔓 OPEN" : "🔒 PRIVÉ";
 
-const scoreSpan = document.createElement("div");
-scoreSpan.className = "score-stn";
-scoreSpan.innerText = p.totalScore + " pnt  |  " + handLength + " stn";
-
-const statusSpan = document.createElement("div");
-statusSpan.className = "status-badge " + (p.isOpen ? "open" : "");
-statusSpan.innerText = p.isOpen ? "🔓 OPEN" : "🔒 PRIVÉ";
-
-colHeader.appendChild(titleSpan);
-colHeader.appendChild(scoreSpan);
-colHeader.appendChild(statusSpan);
+                colHeader.appendChild(titleSpan);
+                colHeader.appendChild(scoreSpan);
+                colHeader.appendChild(statusSpan);
 
 if (handLength === 1) {
     const bounceBadge = document.createElement("div");
