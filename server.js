@@ -59,13 +59,34 @@ function initRound() {
     game.hasDrawn = false;
     game.requiredDouble = { active: false, value: null, targetId: null };
 
-    // OPLOSSING BUG 2: Filter de dubbele startsteen nu WATERDICHT uit de pot (controleert beide array elementen)
+    // Filter de centrale startsteen waterdicht uit de pot
     game.boneyard = game.boneyard.filter(s => !(s[0] === game.startNumber && s[1] === game.startNumber));
 
-    // Bepaal handgrootte op basis van de officiële toernooiregels
-    let stonesPerPlayer = 11;
-    if (game.maxStone >= 15) stonesPerPlayer = 13;
-    if (game.players.length >= 7) stonesPerPlayer -= 2;
+    // REPARATIE: Officiële toernooiregels voor het aantal stenen per speler
+    let stonesPerPlayer = 11; // Standaard back-up
+    const numPlayers = game.players.length;
+
+    if (game.maxStone === 12) {
+        // Officiële regels voor Dubbel 12 (91 stenen)
+        if (numPlayers >= 2 && numPlayers <= 4) stonesPerPlayer = 15;
+        else if (numPlayers >= 5 && numPlayers <= 6) stonesPerPlayer = 12;
+        else if (numPlayers >= 7 && numPlayers <= 8) stonesPerPlayer = 11;
+    } else if (game.maxStone === 15) {
+        // Officiële regels voor Dubbel 15 (136 stenen)
+        if (numPlayers >= 2 && numPlayers <= 4) stonesPerPlayer = 19;
+        else if (numPlayers >= 5 && numPlayers <= 6) stonesPerPlayer = 15;
+        else if (numPlayers >= 7 && numPlayers <= 8) stonesPerPlayer = 13;
+    } else {
+        // Dynamische berekening voor elk ander ingevuld getal (bijv. 18 of 9)
+        // Zorg dat er altijd minimaal 20-30 stenen in de pot (boneyard) overblijven
+        const totalStones = game.boneyard.length;
+        const targetBoneyard = 25; 
+        stonesPerPlayer = Math.floor((totalStones - targetBoneyard) / numPlayers);
+        if (stonesPerPlayer > 20) stonesPerPlayer = 20; // Beperk de handgrootte visueel
+        if (stonesPerPlayer < 5) stonesPerPlayer = 5;
+    }
+
+    console.log("Aantal spelers: " + numPlayers + ". Stenen per persoon: " + stonesPerPlayer);
 
     game.players.forEach(p => {
         game.hands[p.id] = game.boneyard.splice(0, stonesPerPlayer);
