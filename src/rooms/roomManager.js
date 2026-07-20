@@ -3,96 +3,153 @@ const Game = require('../models/game');
 class RoomManager {
     constructor(io) {
         this.io = io;
-        this.game = new Game();
+        this.rooms = {}; // Houdt meerdere actieve kamers bij: { kamernaam: GameInstance }
         this.setupSocketEvents();
+    }
+
+    // Genereer een overzicht van alle kamers voor het startscherm
+    getRoomList() {
+        return Object.keys(this.rooms).map(roomName => {
+            const game = this.rooms[roomName];
+            return {
+                name: roomName,
+                started: game.started,
+                playerCount: game.players.length,
+                spectatorCount: game.spectators ? game.spectators.length : 0
+            };
+        });
     }
 
     setupSocketEvents() {
         this.io.on('connection', (socket) => {
             console.log(`Gebruiker verbonden: ${socket.id}`);
+            let currentRoom = null;
 
-            socket.on('joinGame', (name) => {
-                const res = this.game.addPlayer(socket.id, name);
-                if (res.error) return socket.emit('errorMsg', res.error);
-                socket.emit('joinSuccess');
-                this.io.emit('updateGame', this.game.toPublicState());
+            // Stuur direct de actieve kamers naar de nieuwe bezoeker
+            socket.emit('roomListUpdate', this.getRoomList());
+
+            socket.on('createRoom', (roomName) => {
+                const name = roomName.trim();
+                if (!name) return socket.emit('errorMsg', 'Kamer naam mag niet leeg zijn.');
+                if (this.rooms[name]) return socket.emit('errorMsg', 'Deze kamer bestaat al!');
+
+                this.rooms[name] = new Game();
+                console.log(`Nieuwe kamer aangemaakt: ${name}`);
+                this.io.emit('roomListUpdate', this.getRoomList());
             });
 
-            socket.on('joinAsSpectator', () => {
-                const res = this.game.addSpectator(socket.id);
+            socket.on('joinGame', ({ roomName, playerName }) => {
+                const game = this.rooms[roomName];
+                if (!game) return socket.emit('errorMsg', 'Kamer niet gevonden.');
+                
+                const res = game.addPlayer(socket.id, playerName);
                 if (res.error) return socket.emit('errorMsg', res.error);
-                socket.emit('joinSuccess');
-                this.io.emit('updateGame', this.game.toPublicState());
+
+                currentRoom = roomName;
+                socket.join(roomName);
+                socket.emit('joinSuccess', roomName);
+                this.io.to(roomName).emit('updateGame', game.toPublicState());
+                this.io.emit('roomListUpdate', this.getRoomList());
+            });
+
+            socket.on('joinAsSpectator', (roomName) => {
+                const game = this.rooms[roomName];
+                if (!game) return socket.emit('errorMsg', 'Kamer niet gevonden.');
+
+                const res = game.addSpectator(socket.id);
+                if (res.error) return socket.emit('errorMsg', res.error);
+
+                currentRoom = roomName;
+                socket.join(roomName);
+                socket.emit('joinSuccess', roomName);
+                this.io.to(roomName).emit('updateGame', game.toPublicState());
+                this.io.emit('roomListUpdate', this.getRoomList());
             });
 
             socket.on('startGame', (maxStone) => {
-                this.game.start(maxStone);
-                this.io.emit('gameStarted');
-                this.io.emit('updateGame', this.game.toPublicState());
-                // Trigger altijd beurtgeluid voor de allereerste speler die mag beginnen
-                this.io.emit('playSound', 'turn');
+                if (!currentRoom) return;
+                const game = this.rooms[currentRoom];
+                if (!game) return;
+
+                game.start(maxStone);
+                this.io.to(currentRoom).emit('gameStarted');
+                this.io.to(currentRoom).emit('updateGame', game.toPublicState());
+                this.io.to(currentRoom).emit('playSound', 'turn');
+                this.io.emit('roomListUpdate', this.getRoomList()); // Update 'bezig' status op startscherm
             });
 
             socket.on('drawStone', () => {
-                const success = this.game.drawStone(socket.id);
-                if (success) this.io.emit('updateGame', this.game.toPublicState());
+                if (!currentRoom) return;
+                const game = this.rooms[currentRoom];
+                if (game && game.drawStone(socket.id)) {
+                    this.io.to(currentRoom).emit('updateGame', game.toPublicState());
+                }
             });
 
             socket.on('passTurn', () => {
-                const oldGame = JSON.parse(JSON.stringify(this.game.toPublicState()));
-                const success = this.game.passTurn(socket.id);
-                if (success) {
-                    this.checkSoundTriggers(oldGame, this.game.toPublicState());
-                    this.io.emit('updateGame', this.game.toPublicState());
+                if (!currentRoom) return;
+                const game = this.rooms[currentRoom];
+                if (!game) return;
+
+                const oldGame = JSON.parse(JSON.stringify(game.toPublicState()));
+                if (game.passTurn(socket.id)) {
+                    this.checkSoundTriggers(currentRoom, oldGame, game.toPublicState());
+                    this.io.to(currentRoom).emit('updateGame', game.toPublicState());
                 }
             });
 
             socket.on('playStone', ({ stoneIndex, targetId }) => {
-                const oldGame = JSON.parse(JSON.stringify(this.game.toPublicState()));
-                const res = this.game.playStone(socket.id, stoneIndex, targetId);
+                if (!currentRoom) return;
+                const game = this.rooms[currentRoom];
+                if (!game) return;
+
+                const oldGame = JSON.parse(JSON.stringify(game.toPublicState()));
+                const res = game.playStone(socket.id, stoneIndex, targetId);
                 if (res && res.error) return socket.emit('errorMsg', res.error);
                 
                 if (res && res.roundEnded) {
-                    this.io.emit('roundEnded', res);
+                    this.io.to(currentRoom).emit('roundEnded', res);
                 } else {
-                    this.checkSoundTriggers(oldGame, this.game.toPublicState());
-                    this.io.emit('updateGame', this.game.toPublicState());
+                    this.checkSoundTriggers(currentRoom, oldGame, game.toPublicState());
+                    this.io.to(currentRoom).emit('updateGame', game.toPublicState());
                 }
             });
 
             socket.on('reorderHand', ({ fromIndex, toIndex }) => {
-                this.game.reorderHand(socket.id, fromIndex, toIndex);
-                this.io.emit('updateGame', this.game.toPublicState());
+                if (!currentRoom) return;
+                const game = this.rooms[currentRoom];
+                if (game) {
+                    game.reorderHand(socket.id, fromIndex, toIndex);
+                    this.io.to(currentRoom).emit('updateGame', game.toPublicState());
+                }
             });
 
             socket.on('disconnect', () => {
-                this.game.removeUser(socket.id);
-                this.io.emit('updateGame', this.game.toPublicState());
+                if (currentRoom) {
+                    const game = this.rooms[currentRoom];
+                    if (game) {
+                        game.removeUser(socket.id);
+                        this.io.to(currentRoom).emit('updateGame', game.toPublicState());
+                        
+                        // Verwijder lege kamers automatisch om serverruimte te besparen
+                        if (game.players.length === 0 && game.spectators.length === 0) {
+                            delete this.rooms[currentRoom];
+                            console.log(`Kamer opgeruimd wegens inactiviteit: ${currentRoom}`);
+                        }
+                    }
+                }
+                this.io.emit('roomListUpdate', this.getRoomList());
                 console.log(`Gebruiker verbroken: ${socket.id}`);
             });
         });
     }
 
-    // Gecorrigeerde triggers op basis van de toPublicState data
-    checkSoundTriggers(oldG, newG) {
-        // 1. Controleer beurtwissel (turn ping)
-        if (oldG.currentTurn !== newG.currentTurn) {
-            this.io.emit('playSound', 'turn');
-        }
-        
-        // 2. Controleer open trein en kloppen (1 steen over)
+    checkSoundTriggers(roomName, oldG, newG) {
+        if (oldG.currentTurn !== newG.currentTurn) this.io.to(roomName).emit('playSound', 'turn');
         newG.players.forEach(p => {
             const oldP = oldG.players.find(x => x.id === p.id);
-            
-            // Trein gaat open
-            if (p.isOpen && (!oldP || !oldP.isOpen)) {
-                this.io.emit('playSound', 'trainOpen');
-            }
-            
-            // Speler komt op exact 1 steen (houten klopgeluid)
-            if (p.handCount === 1 && (!oldP || oldP.handCount > 1)) {
-                this.io.emit('playSound', 'knock');
-            }
+            if (p.isOpen && (!oldP || !oldP.isOpen)) this.io.to(roomName).emit('playSound', 'trainOpen');
+            if (p.handCount === 1 && (!oldP || oldP.handCount > 1)) this.io.to(roomName).emit('playSound', 'knock');
         });
     }
 }
