@@ -29,6 +29,8 @@ class RoomManager {
                 this.game.start(maxStone);
                 this.io.emit('gameStarted');
                 this.io.emit('updateGame', this.game.toPublicState());
+                // Trigger altijd beurtgeluid voor de allereerste speler die mag beginnen
+                this.io.emit('playSound', 'turn');
             });
 
             socket.on('drawStone', () => {
@@ -37,23 +39,23 @@ class RoomManager {
             });
 
             socket.on('passTurn', () => {
-                const oldGame = JSON.parse(JSON.stringify(this.game.getState()));
+                const oldGame = JSON.parse(JSON.stringify(this.game.toPublicState()));
                 const success = this.game.passTurn(socket.id);
                 if (success) {
-                    this.checkSoundTriggers(oldGame, this.game.getState());
+                    this.checkSoundTriggers(oldGame, this.game.toPublicState());
                     this.io.emit('updateGame', this.game.toPublicState());
                 }
             });
 
             socket.on('playStone', ({ stoneIndex, targetId }) => {
-                const oldGame = JSON.parse(JSON.stringify(this.game.getState()));
+                const oldGame = JSON.parse(JSON.stringify(this.game.toPublicState()));
                 const res = this.game.playStone(socket.id, stoneIndex, targetId);
                 if (res && res.error) return socket.emit('errorMsg', res.error);
                 
                 if (res && res.roundEnded) {
                     this.io.emit('roundEnded', res);
                 } else {
-                    this.checkSoundTriggers(oldGame, this.game.getState());
+                    this.checkSoundTriggers(oldGame, this.game.toPublicState());
                     this.io.emit('updateGame', this.game.toPublicState());
                 }
             });
@@ -71,14 +73,26 @@ class RoomManager {
         });
     }
 
+    // Gecorrigeerde triggers op basis van de toPublicState data
     checkSoundTriggers(oldG, newG) {
-        if (oldG.currentTurn !== newG.currentTurn) this.io.emit('playSound', 'turn');
+        // 1. Controleer beurtwissel (turn ping)
+        if (oldG.currentTurn !== newG.currentTurn) {
+            this.io.emit('playSound', 'turn');
+        }
+        
+        // 2. Controleer open trein en kloppen (1 steen over)
         newG.players.forEach(p => {
             const oldP = oldG.players.find(x => x.id === p.id);
-            if (p.isOpen && (!oldP || !oldP.isOpen)) this.io.emit('playSound', 'trainOpen');
-            const newLen = newG.hands[p.id] ? newG.hands[p.id].length : 0;
-            const oldLen = oldG.hands[p.id] ? oldG.hands[p.id].length : 0;
-            if (newLen === 1 && oldLen > 1) this.io.emit('playSound', 'knock');
+            
+            // Trein gaat open
+            if (p.isOpen && (!oldP || !oldP.isOpen)) {
+                this.io.emit('playSound', 'trainOpen');
+            }
+            
+            // Speler komt op exact 1 steen (houten klopgeluid)
+            if (p.handCount === 1 && (!oldP || oldP.handCount > 1)) {
+                this.io.emit('playSound', 'knock');
+            }
         });
     }
 }
