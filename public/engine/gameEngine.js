@@ -1,6 +1,5 @@
 console.log("Mexican Train: public/engine/gameEngine.js succesvol geladen!");
 
-// Hulpfunctie om een losse dominosteen visueel op het bord te tekenen
 function createStoneEl(s, isHandCard, idx) {
     if (!Array.isArray(s)) return document.createElement("div");
     const btn = document.createElement(isHandCard ? "button" : "div");
@@ -18,7 +17,7 @@ function createStoneEl(s, isHandCard, idx) {
             if (window.selectedTrainId !== null) executePlay();
         };
     }
-    btn.innerHTML = `<span>${s[0]}</span><div class='line'></div><span>${s[1]}</span>`;
+    btn.innerHTML = `<span>${s}</span><div class='line'></div><span>${s}</span>`;
     return btn;
 }
 window.createStoneEl = createStoneEl;
@@ -53,7 +52,6 @@ if (window.socket) {
     window.socket.on('updateGame', (game) => {
         if (!game || !game.players) return;
 
-        // 1. Lobby wachtlijst bijwerken
         const list = document.getElementById('playerList');
         if (list) {
             list.innerHTML = game.players.map(p => `<li>${p.name} (Totaal: ${p.totalScore} pnt)</li>`).join('');
@@ -65,11 +63,10 @@ if (window.socket) {
         // REPARATIE: Toon de startknop UITSLUITEND als jij de maker (creator) bent van deze kamer!
         const startBtn = document.getElementById('lobbyStartBtn');
         if (startBtn) {
-            const amICreator = game.creatorId === window.socket.id;
-            if (amICreator) {
-                startBtn.classList.remove('hidden'); // Wel zichtbaar voor de maker
+            if (game.creatorId && game.creatorId === window.socket.id) {
+                startBtn.classList.remove('hidden'); 
             } else {
-                startBtn.classList.add('hidden');    // Onzichtbaar voor alle andere spelers
+                startBtn.classList.add('hidden');    
             }
         }
 
@@ -83,7 +80,6 @@ if (window.socket) {
         }
 
         if (!game.started && !game.gameOver) return;
-
         // Wissel schermen om naar het actieve speelbord
         if (document.getElementById('lobby')) document.getElementById('lobby').classList.add('hidden');
         if (document.getElementById('board')) document.getElementById('board').classList.remove('hidden');
@@ -92,7 +88,6 @@ if (window.socket) {
         if (document.getElementById('centerStone')) document.getElementById('centerStone').innerText = game.startNumber + '|' + game.startNumber;
         if (document.getElementById('boneyardCount')) document.getElementById('boneyardCount').innerText = game.boneyardCount || 0;
 
-        // 2. Scorebalk bovenaan
         const headerRow = document.getElementById('playerHeaderRow');
         if (headerRow) {
             headerRow.innerHTML = game.players.map((p, idx) => {
@@ -105,25 +100,21 @@ if (window.socket) {
             }).join('');
         }
 
-        // Dubbelsteen waarschuwingsbanner
         if (document.getElementById('doubleWarningBanner')) {
             document.getElementById('doubleWarningBanner').classList.toggle('hidden', !(game.requiredDouble && game.requiredDouble.active));
         }
 
-        // Verplichte dubbel highlight op Mexican Train
         if (document.getElementById('mexicanTrackCard')) {
             const isMexDouble = game.requiredDouble && game.requiredDouble.active && game.requiredDouble.targetId === 'mexican';
             document.getElementById('mexicanTrackCard').classList.toggle('double-highlight', !!isMexDouble);
         }
 
-        // 3. Render Algemene Mexican Train
         const mexTrack = document.getElementById('mexicanTrack');
         if (mexTrack && game.mexicanTrain) {
             mexTrack.innerHTML = "";
             game.mexicanTrain.forEach(s => { if (Array.isArray(s)) mexTrack.appendChild(createStoneEl(s, false)); });
         }
 
-        // 4. Render Alle Verticale Spelerstreinen (kolommen)
         const tracksContainer = document.getElementById('playerTracksContainer');
         if (tracksContainer) {
             tracksContainer.innerHTML = "";
@@ -153,7 +144,6 @@ if (window.socket) {
             });
         }
 
-        // 5. Knoppensturing actieve speler regelen
         const drawBtn = document.getElementById('drawBtn');
         const passBtn = document.getElementById('passBtn');
         const label = document.getElementById('drawStatusLabel');
@@ -170,12 +160,9 @@ if (window.socket) {
             }
         }
 
-        // 6. Eigen hand onderaan renderen
         const handDiv = document.getElementById('myHand');
         if (handDiv) {
             handDiv.innerHTML = "";
-            handDiv.style = "display:flex !important; flex-direction:row !important; flex-wrap:nowrap !important; overflow-x:auto !important; justify-content:flex-start !important; padding:5px; width:100%; box-sizing:border-box;";
-            
             const isSpectator = game.spectators && game.spectators.some(s => s.id === window.socket.id);
             
             if (isSpectator) {
@@ -190,13 +177,20 @@ if (window.socket) {
             }
         }
     });
-    // Luisteraar voor einde ronde of einde wedstrijd
+
+    // REPARATIE: Vangt het startsignaal op en forceert de schermwissel direct bij het starten!
+    window.socket.on('gameStarted', () => {
+        if (document.getElementById('lobby')) document.getElementById('lobby').classList.add('hidden');
+        if (document.getElementById('board')) document.getElementById('board').classList.remove('hidden');
+    });
+
     window.socket.on('roundEnded', (data) => {
-        alert(data.nextRoundReady ? Ronde voorbij! ${data.winner} heeft uitgespeeld.\n\nVolgende ronde met Dubbel ${data.game.startNumber}. : FINALE AFGELOPEN!\n\n🏆 WINNAAR: ${data.champion}!);
-    if (!data.nextRoundReady) {sessionStorage.removeItem('mexicanTrainJoined');
-        if (document.getElementById('board')) document.getElementById('board').classList.add('hidden');
-        if (document.getElementById('lobby')) document.getElementById('lobby').classList.remove('hidden');
-    }
-    if (data.game) window.socket.emit('updateGame', data.game);
+        alert(data.nextRoundReady ? `Ronde voorbij! ${data.winner} heeft uitgespeeld.\n\nVolgende ronde met Dubbel ${data.game.startNumber}.` : `FINALE AFGELOPEN!\n\n🏆 WINNAAR: ${data.champion}!`);
+        if (!data.nextRoundReady) {
+            sessionStorage.removeItem('mexicanTrainJoined');
+            if (document.getElementById('board')) document.getElementById('board').classList.add('hidden');
+            if (document.getElementById('lobby')) document.getElementById('lobby').classList.remove('hidden');
+        }
+        if (data.game) window.socket.emit('updateGame', data.game);
     });
 }
