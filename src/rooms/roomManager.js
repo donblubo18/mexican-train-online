@@ -26,12 +26,31 @@ class RoomManager {
 
             socket.emit('roomListUpdate', this.getRoomList());
 
-            socket.on('createRoom', (roomName) => {
-                const name = roomName.trim();
-                if (!name) return socket.emit('errorMsg', 'Kamer naam mag niet leeg zijn.');
-                if (this.rooms[name]) return socket.emit('errorMsg', 'Deze kamer bestaat al!');
+            // REPARATIE: Maakt kamer aan én slaat op wie de maker (creator) is
+            socket.on('createRoom', ({ roomName, playerName }) => {
+                const rName = roomName.trim();
+                const pName = playerName.trim();
+                
+                if (!pName) return socket.emit('errorMsg', 'Vul eerst je spelersnaam in bovenin!');
+                if (!rName) return socket.emit('errorMsg', 'Kamer naam mag niet leeg zijn.');
+                if (this.rooms[rName]) return socket.emit('errorMsg', 'Deze kamer bestaat al!');
 
-                this.rooms[name] = new Game();
+                // Maak de kamer aan en wijs de maker toe
+                const newGame = new Game();
+                newGame.creatorId = socket.id; // Sla de Socket-ID van de maker op
+                this.rooms[rName] = newGame;
+                
+                console.log(`Kamer '${rName}' succesvol aangemaakt door ${pName}`);
+
+                // Voeg de maker DIRECT automatisch toe aan zijn eigen kamer
+                const res = newGame.addPlayer(socket.id, pName);
+                if (res.error) return socket.emit('errorMsg', res.error);
+
+                currentRoom = rName;
+                socket.join(rName);
+                socket.emit('joinSuccess', rName);
+                
+                this.io.to(rName).emit('updateGame', newGame.toPublicState());
                 this.io.emit('roomListUpdate', this.getRoomList());
             });
 
@@ -68,16 +87,19 @@ class RoomManager {
                 const game = this.rooms[currentRoom];
                 if (!game) return;
 
+                // REPARATIE: Beveiliging aan de backend -> Alleen de maker mag starten!
+                if (game.creatorId !== socket.id) {
+                    return socket.emit('errorMsg', 'Alleen de maker van deze kamer mag het spel starten.');
+                }
+
                 game.start(maxStone);
                 this.io.to(currentRoom).emit('gameStarted');
                 this.io.to(currentRoom).emit('updateGame', game.toPublicState());
                 
-                // REPARATIE: Stuur de allereerste turn-ping alleen naar de startende speler
                 const firstPlayer = game.players[game.currentTurn];
                 if (firstPlayer) {
                     this.io.to(firstPlayer.id).emit('playSound', 'turn');
                 }
-                
                 this.io.emit('roomListUpdate', this.getRoomList());
             });
 
@@ -145,23 +167,14 @@ class RoomManager {
     }
 
     checkSoundTriggers(roomName, oldG, newG) {
-        // REPARATIE: Als de beurt wisselt, stuur de ping UITSLUITEND naar de nieuwe speler!
         if (oldG.currentTurn !== newG.currentTurn) {
             const nextPlayer = newG.players[newG.currentTurn];
-            if (nextPlayer) {
-                this.io.to(nextPlayer.id).emit('playSound', 'turn');
-            }
+            if (nextPlayer) this.io.to(nextPlayer.id).emit('playSound', 'turn');
         }
-        
-        // Overige geluiden (trein open, knock) blijven voor iedereen in de kamer hoorbaar
         newG.players.forEach(p => {
             const oldP = oldG.players.find(x => x.id === p.id);
-            if (p.isOpen && (!oldP || !oldP.isOpen)) {
-                this.io.to(roomName).emit('playSound', 'trainOpen');
-            }
-            if (p.handCount === 1 && (!oldP || oldP.handCount > 1)) {
-                this.io.to(roomName).emit('playSound', 'knock');
-            }
+            if (p.isOpen && (!oldP || !oldP.isOpen)) this.io.to(roomName).emit('playSound', 'trainOpen');
+            if (p.handCount === 1 && (!oldP || oldP.handCount > 1)) this.io.to(roomName).emit('playSound', 'knock');
         });
     }
 }
