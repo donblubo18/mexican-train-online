@@ -1,5 +1,4 @@
 const Player = require('../models/player');
-const GameEngine = require('../engine/gameEngine');
 const Domino = require('../models/domino');
 
 module.exports = (io, game) => {
