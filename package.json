@@ -1,13 +1,13 @@
 {
-  "name": "mexican-train-modular",
-  "version": "2.0.0",
-  "description": "Object-Oriented Mexican Train Board Game",
+  "name": "mexican-train-online",
+  "version": "1.1.0",
+  "description": "Modulaire Mexican Train Live met Geluid",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "express": "^4.19.0",
     "socket.io": "^4.7.5"
   }
 }
