@@ -6,6 +6,7 @@ class Game {
     constructor() {
         this.players = [];
         this.spectators = [];
+        this.creatorId = null; // Wordt gevuld door de roomManager
         this.maxStone = 12;
         this.boneyard = [];
         this.mexicanTrain = [];
@@ -21,8 +22,8 @@ class Game {
 
     addPlayer(id, name) {
         if (this.started) return { error: 'Spel al begonnen! Je kunt wel meekijken als toeschouwer.' };
-        if (this.players.length >= 8) return { error: 'Spel is vol. Maximaal 8 spelers toegestaan.' };  
-        // REPARATIE BUG: Controleer of de naam al bestaat in deze kamer (ongeacht hoofdletters)
+        if (this.players.length >= 8) return { error: 'Spel is vol. Maximaal 8 spelers toegestaan.' };
+        
         const nameExists = this.players.some(p => p.name.toLowerCase() === name.toLowerCase());
         if (nameExists) return { error: 'Deze naam is al in gebruik in deze kamer! Kies een andere naam.' };
         
@@ -33,16 +34,13 @@ class Game {
     addSpectator(id) {
         if (this.players.some(p => p.id === id)) return { error: 'Je bent al speler!' };
         const specName = "Kijker " + (this.spectators.length + 1);
-             // REPARATIE BUG: Controleer of de naam al bestaat in deze kamer (ongeacht hoofdletters)
-        const nameExists = this.players.some(p => p.name.toLowerCase() === name.toLowerCase());
-        if (nameExists) return { error: 'Deze naam is al in gebruik in deze kamer! Kies een andere naam.' };
         this.spectators.push({ id, name: specName });
         return { success: true };
     }
 
     removeUser(id) {
         this.players = this.players.filter(p => p.id !== id);
-        this.spectators = this.spectators.filter(s => s.id !== id);
+        if (this.spectators) this.spectators = this.spectators.filter(s => s.id !== id);
         delete this.hands[id];
         if (this.players.length === 0) this.started = false;
     }
@@ -53,7 +51,6 @@ class Game {
         this.currentRound = 1;
         this.gameOver = false;
         this.started = true;
-        this.spectators = this.spectators || [];
         this.players.forEach(p => p.totalScore = 0);
         this.initRound();
     }
@@ -65,7 +62,7 @@ class Game {
         this.hasDrawn = false;
         this.requiredDouble = { active: false, value: null, targetId: null };
 
-        this.boneyard = this.boneyard.filter(s => !(s[0] === this.startNumber && s[1] === this.startNumber));
+        this.boneyard = this.boneyard.filter(s => !(s === this.startNumber && s === this.startNumber));
         const stones = getStonesPerPlayer(this.maxStone, this.players.length);
 
         this.players.forEach(p => {
@@ -117,15 +114,14 @@ class Game {
         if (hand.length === 0) {
             this.players.forEach(p => {
                 const pHand = this.hands[p.id] || [];
-                p.totalScore += pHand.reduce((sum, s) => sum + s[0] + s[1], 0);
+                p.totalScore += pHand.reduce((sum, s) => sum + s + s, 0);
             });
             if (this.startNumber > 0) {
                 this.startNumber -= 1; this.currentRound += 1; this.initRound();
                 return { roundEnded: true, winner: this.players[this.currentTurn].name, nextRoundReady: true, game: this };
             } else {
                 this.started = false; this.gameOver = true;
-                const sorted = [...this.players].sort((a,b) => a.totalScore - b.totalScore);
-                return { roundEnded: true, winner: this.players[this.currentTurn].name, nextRoundReady: false, champion: sorted[0].name, game: this };
+                return { roundEnded: true, winner: this.players[this.currentTurn].name, nextRoundReady: false, champion: this.players[0].name, game: this };
             }
         }
 
@@ -149,7 +145,7 @@ class Game {
 
     getState() { return this; }
 
-        toPublicState() {
+    toPublicState() {
         const publicPlayers = this.players.map(p => ({
             id: p.id,
             name: p.name,
@@ -162,7 +158,7 @@ class Game {
         return {
             players: publicPlayers,
             spectators: this.spectators || [],
-            creatorId: this.creatorId || null, // REPARATIE: Stuurt de ID van de maker mee naar de frontend
+            creatorId: this.creatorId, // Garandeert meesturen van de unieke ID
             maxStone: this.maxStone,
             boneyardCount: this.boneyard ? this.boneyard.length : 0,
             mexicanTrain: this.mexicanTrain || [],
@@ -176,7 +172,6 @@ class Game {
             requiredDouble: this.requiredDouble
         };
     }
-
 }
 
 module.exports = Game;
