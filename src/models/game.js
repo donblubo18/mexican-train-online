@@ -143,13 +143,23 @@ class Game {
     getState() { return this; }
 
     toPublicState() {
+        // Stop het aantal stenen direct in het player-object zelf (p.handCount)
+        const publicPlayers = this.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            isOpen: p.isOpen,
+            train: p.train || [],
+            totalScore: p.totalScore || 0,
+            handCount: this.hands[p.id] ? this.hands[p.id].length : 0 // <- HIER REPARATIE
+        }));
+
         return {
-            players: this.players,
+            players: publicPlayers,
             spectators: this.spectators || [],
             maxStone: this.maxStone,
             boneyardCount: this.boneyard ? this.boneyard.length : 0,
-            mexicanTrain: this.mexicanTrain,
-            hands: this.hands,
+            mexicanTrain: this.mexicanTrain || [],
+            hands: this.hands, // Handen blijven behouden voor de updates
             currentTurn: this.currentTurn,
             started: this.started,
             startNumber: this.startNumber,
