@@ -3,11 +3,10 @@ const Game = require('../models/game');
 class RoomManager {
     constructor(io) {
         this.io = io;
-        this.rooms = {}; // Houdt meerdere actieve kamers bij: { kamernaam: GameInstance }
+        this.rooms = {}; 
         this.setupSocketEvents();
     }
 
-    // Genereer een overzicht van alle kamers voor het startscherm
     getRoomList() {
         return Object.keys(this.rooms).map(roomName => {
             const game = this.rooms[roomName];
@@ -25,7 +24,6 @@ class RoomManager {
             console.log(`Gebruiker verbonden: ${socket.id}`);
             let currentRoom = null;
 
-            // Stuur direct de actieve kamers naar de nieuwe bezoeker
             socket.emit('roomListUpdate', this.getRoomList());
 
             socket.on('createRoom', (roomName) => {
@@ -34,7 +32,6 @@ class RoomManager {
                 if (this.rooms[name]) return socket.emit('errorMsg', 'Deze kamer bestaat al!');
 
                 this.rooms[name] = new Game();
-                console.log(`Nieuwe kamer aangemaakt: ${name}`);
                 this.io.emit('roomListUpdate', this.getRoomList());
             });
 
@@ -74,8 +71,14 @@ class RoomManager {
                 game.start(maxStone);
                 this.io.to(currentRoom).emit('gameStarted');
                 this.io.to(currentRoom).emit('updateGame', game.toPublicState());
-                this.io.to(currentRoom).emit('playSound', 'turn');
-                this.io.emit('roomListUpdate', this.getRoomList()); // Update 'bezig' status op startscherm
+                
+                // REPARATIE: Stuur de allereerste turn-ping alleen naar de startende speler
+                const firstPlayer = game.players[game.currentTurn];
+                if (firstPlayer) {
+                    this.io.to(firstPlayer.id).emit('playSound', 'turn');
+                }
+                
+                this.io.emit('roomListUpdate', this.getRoomList());
             });
 
             socket.on('drawStone', () => {
@@ -130,11 +133,8 @@ class RoomManager {
                     if (game) {
                         game.removeUser(socket.id);
                         this.io.to(currentRoom).emit('updateGame', game.toPublicState());
-                        
-                        // Verwijder lege kamers automatisch om serverruimte te besparen
                         if (game.players.length === 0 && game.spectators.length === 0) {
                             delete this.rooms[currentRoom];
-                            console.log(`Kamer opgeruimd wegens inactiviteit: ${currentRoom}`);
                         }
                     }
                 }
@@ -145,11 +145,23 @@ class RoomManager {
     }
 
     checkSoundTriggers(roomName, oldG, newG) {
-        if (oldG.currentTurn !== newG.currentTurn) this.io.to(roomName).emit('playSound', 'turn');
+        // REPARATIE: Als de beurt wisselt, stuur de ping UITSLUITEND naar de nieuwe speler!
+        if (oldG.currentTurn !== newG.currentTurn) {
+            const nextPlayer = newG.players[newG.currentTurn];
+            if (nextPlayer) {
+                this.io.to(nextPlayer.id).emit('playSound', 'turn');
+            }
+        }
+        
+        // Overige geluiden (trein open, knock) blijven voor iedereen in de kamer hoorbaar
         newG.players.forEach(p => {
             const oldP = oldG.players.find(x => x.id === p.id);
-            if (p.isOpen && (!oldP || !oldP.isOpen)) this.io.to(roomName).emit('playSound', 'trainOpen');
-            if (p.handCount === 1 && (!oldP || oldP.handCount > 1)) this.io.to(roomName).emit('playSound', 'knock');
+            if (p.isOpen && (!oldP || !oldP.isOpen)) {
+                this.io.to(roomName).emit('playSound', 'trainOpen');
+            }
+            if (p.handCount === 1 && (!oldP || oldP.handCount > 1)) {
+                this.io.to(roomName).emit('playSound', 'knock');
+            }
         });
     }
 }
