@@ -9,6 +9,7 @@ const socket = io();
 let selectedStoneIndex = null;
 let selectedTrainId = null;
 let draggedStoneIndex = null;
+let activeRoomName = null; // Slaat op in welke kamer je momenteel zit
 
 function unlockAudio() {
     console.log("AudioController: Browser toestemming aanvragen...");
@@ -22,15 +23,32 @@ function unlockAudio() {
     });
 }
 
-if (sessionStorage.getItem('mexicanTrainJoined') && document.getElementById('nameInp')) {
-    document.getElementById('nameInp').disabled = true;
+function createNewRoom() {
+    const roomInp = document.getElementById('newRoomInp');
+    const roomName = roomInp ? roomInp.value.trim() : "";
+    if (roomName) {
+        socket.emit('createRoom', roomName);
+        roomInp.value = "";
+    } else {
+        alert("Vul een naam in voor de nieuwe kamer!");
+    }
 }
 
-function join() {
-    unlockAudio(); 
-    const name = document.getElementById('nameInp')?.value.trim();
-    if (name) socket.emit('joinGame', name);
-    else alert("Naam invullen!");
+// Wordt aangeroepen vanuit de dynamische lijst
+function joinRoom(roomName) {
+    unlockAudio();
+    const nameInp = document.getElementById('nameInp');
+    const playerName = nameInp ? nameInp.value.trim() : "";
+    if (!playerName) return alert("Vul eerst een spelersnaam in bovenin!");
+
+    activeRoomName = roomName;
+    socket.emit('joinGame', { roomName, playerName });
+}
+
+function spectateRoom(roomName) {
+    unlockAudio();
+    activeRoomName = roomName;
+    socket.emit('joinAsSpectator', roomName);
 }
 
 function start() {
@@ -39,9 +57,37 @@ function start() {
     socket.emit('startGame', parseInt(m) || 12);
 }
 
-function spectate() { unlockAudio(); socket.emit('joinAsSpectator'); }
 function draw() { socket.emit('drawStone'); }
 function pass() { socket.emit('passTurn'); }
+
+// Ontvang live kamer updates voor het startscherm
+socket.on('roomListUpdate', (rooms) => {
+    const container = document.getElementById('roomListContainer');
+    if (!container) return;
+
+    if (!rooms || rooms.length === 0) {
+        container.innerHTML = `<div style="color: #94a3b8; font-size: 14px; font-style: italic; text-align: center; padding: 10px;">Geen actieve kamers. Maak hierboven een kamer aan!</div>`;
+        return;
+    }
+
+    // OPLOSSING BUG/FUNCTIE: Teken alle kamers. Als het spel bezig is, blokkeer deelname!
+    container.innerHTML = rooms.map(r => {
+        const statusText = r.started ? `<span style="color:#f87171; font-weight:bold;">⚠️ Bezig</span>` : `<span style="color:#4ade80; font-weight:bold;">⏳ Lobby</span>`;
+        
+        return `<div class="room-box">
+            <div class="room-info">
+                <strong>Kamer: ${r.name}</strong> (${statusText})<br>
+                <span style="color:#94a3b8; font-size:12px;">Spelers: ${r.playerCount}/8 | Kijkers: ${r.spectatorCount}</span>
+            </div>
+            <div class="room-actions">
+                <!-- Wordt grijs (disabled) als het spel al gestart is! -->
+                <button onclick="joinRoom('${r.name}')" class="btn-sm btn-yellow" ${r.started ? 'disabled style="opacity:0.2; cursor:not-allowed;"' : ''}>Deelnemen</button>
+                <!-- Blijft ALTIJD bruikbaar -->
+                <button onclick="spectateRoom('${r.name}')" class="btn-sm btn-slate">Kijken</button>
+            </div>
+        </div>`;
+    }).join('');
+});
 
 window.audioTurn = audioTurn;
 window.audioTrainOpen = audioTrainOpen;
