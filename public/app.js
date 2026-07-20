@@ -9,7 +9,7 @@ const socket = io();
 let selectedStoneIndex = null;
 let selectedTrainId = null;
 let draggedStoneIndex = null;
-let activeRoomName = null; // Slaat op in welke kamer je momenteel zit
+let activeRoomName = null; 
 
 function unlockAudio() {
     console.log("AudioController: Browser toestemming aanvragen...");
@@ -34,7 +34,6 @@ function createNewRoom() {
     }
 }
 
-// Wordt aangeroepen vanuit de dynamische lijst
 function joinRoom(roomName) {
     unlockAudio();
     const nameInp = document.getElementById('nameInp');
@@ -70,7 +69,6 @@ socket.on('roomListUpdate', (rooms) => {
         return;
     }
 
-    // OPLOSSING BUG/FUNCTIE: Teken alle kamers. Als het spel bezig is, blokkeer deelname!
     container.innerHTML = rooms.map(r => {
         const statusText = r.started ? `<span style="color:#f87171; font-weight:bold;">⚠️ Bezig</span>` : `<span style="color:#4ade80; font-weight:bold;">⏳ Lobby</span>`;
         
@@ -80,15 +78,27 @@ socket.on('roomListUpdate', (rooms) => {
                 <span style="color:#94a3b8; font-size:12px;">Spelers: ${r.playerCount}/8 | Kijkers: ${r.spectatorCount}</span>
             </div>
             <div class="room-actions">
-                <!-- Wordt grijs (disabled) als het spel al gestart is! -->
                 <button onclick="joinRoom('${r.name}')" class="btn-sm btn-yellow" ${r.started ? 'disabled style="opacity:0.2; cursor:not-allowed;"' : ''}>Deelnemen</button>
-                <!-- Blijft ALTIJD bruikbaar -->
                 <button onclick="spectateRoom('${r.name}')" class="btn-sm btn-slate">Kijken</button>
             </div>
         </div>`;
     }).join('');
 });
 
+// REPARATIE: Maakt de wachtruimte-sectie én de startknop direct zichtbaar na een succesvolle join
+socket.on('joinSuccess', (roomName) => {
+    sessionStorage.setItem('mexicanTrainJoined', 'true');
+    
+    const wachtruimte = document.getElementById('wachtruimteSectie');
+    if (wachtruimte) wachtruimte.classList.remove('hidden');
+    
+    const titleLabel = document.getElementById('currentRoomTitle');
+    if (titleLabel) titleLabel.innerText = roomName;
+    
+    if (document.getElementById('nameInp')) document.getElementById('nameInp').disabled = true;
+});
+
+// Deel variabelen met de browser engine via het window-object
 window.audioTurn = audioTurn;
 window.audioTrainOpen = audioTrainOpen;
 window.audioKnock = audioKnock;
