@@ -1,5 +1,6 @@
 const Player = require('../models/player');
 const Domino = require('../models/domino');
+const Game = require('../models/game');
 
 module.exports = (io, game) => {
     io.on('connection', (socket) => {
