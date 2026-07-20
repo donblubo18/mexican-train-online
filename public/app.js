@@ -1,4 +1,4 @@
-console.log("Mexican Train: Volledige app.js succesvol geladen!");
+console.log("Mexican Train: app.js succesvol geladen!");
 
 // 1. Maak de geluiden aan vanaf je eigen Render-server map
 const audioTurn = new Audio('/sounds/turn.mp3'); 
@@ -22,7 +22,7 @@ function unlockAudio() {
             audio.currentTime = 0;
             audio.muted = false;
             console.log("Geluid succesvol ontgrendeld!");
-        }).catch(err => console.log("Unlock nog niet toegestaan:", err));
+        }).catch(err => console.log("Unlock noch niet toegestaan:", err));
     });
 }
 
@@ -30,7 +30,7 @@ if (sessionStorage.getItem('mexicanTrainJoined') && document.getElementById('nam
     document.getElementById('nameInp').disabled = true;
 }
 
-// 4. Lobby knoppen logica
+// 4. Koppel de unlock aan de lobby-knoppen
 function join() {
     unlockAudio(); 
     const name = document.getElementById('nameInp')?.value.trim();
@@ -51,6 +51,15 @@ function spectate() {
 
 function draw() { socket.emit('drawStone'); }
 function pass() { socket.emit('passTurn'); }
+
+// Deel deze variabelen met gameEngine.js via het globale window-object
+window.audioTurn = audioTurn;
+window.audioTrainOpen = audioTrainOpen;
+window.audioKnock = audioKnock;
+window.socket = socket;
+window.selectedStoneIndex = selectedStoneIndex;
+window.selectedTrainId = selectedTrainId;
+window.draggedStoneIndex = draggedStoneIndex;
 
 // 5. Domino en speelveld functies
 function createStoneEl(s, isHandCard, idx) {
