@@ -20,8 +20,12 @@ class Game {
     }
 
     addPlayer(id, name) {
-        if (this.started) return { error: 'Spel al begonnen!' };
-        if (this.players.length >= 8) return { error: 'Spel is vol.' };
+        if (this.started) return { error: 'Spel al begonnen! Je kunt wel meekijken als toeschouwer.' };
+        if (this.players.length >= 8) return { error: 'Spel is vol. Maximaal 8 spelers toegestaan.' };  
+        // REPARATIE BUG: Controleer of de naam al bestaat in deze kamer (ongeacht hoofdletters)
+        const nameExists = this.players.some(p => p.name.toLowerCase() === name.toLowerCase());
+        if (nameExists) return { error: 'Deze naam is al in gebruik in deze kamer! Kies een andere naam.' };
+        
         this.players.push({ id, name, isOpen: false, train: [], totalScore: 0 });
         return { success: true };
     }
@@ -29,6 +33,9 @@ class Game {
     addSpectator(id) {
         if (this.players.some(p => p.id === id)) return { error: 'Je bent al speler!' };
         const specName = "Kijker " + (this.spectators.length + 1);
+             // REPARATIE BUG: Controleer of de naam al bestaat in deze kamer (ongeacht hoofdletters)
+        const nameExists = this.players.some(p => p.name.toLowerCase() === name.toLowerCase());
+        if (nameExists) return { error: 'Deze naam is al in gebruik in deze kamer! Kies een andere naam.' };
         this.spectators.push({ id, name: specName });
         return { success: true };
     }
