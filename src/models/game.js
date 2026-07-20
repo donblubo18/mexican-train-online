@@ -149,24 +149,24 @@ class Game {
 
     getState() { return this; }
 
-    toPublicState() {
-        // Stop het aantal stenen direct in het player-object zelf (p.handCount)
+        toPublicState() {
         const publicPlayers = this.players.map(p => ({
             id: p.id,
             name: p.name,
             isOpen: p.isOpen,
             train: p.train || [],
             totalScore: p.totalScore || 0,
-            handCount: this.hands[p.id] ? this.hands[p.id].length : 0 // <- HIER REPARATIE
+            handCount: this.hands[p.id] ? this.hands[p.id].length : 0 
         }));
 
         return {
             players: publicPlayers,
             spectators: this.spectators || [],
+            creatorId: this.creatorId || null, // REPARATIE: Stuurt de ID van de maker mee naar de frontend
             maxStone: this.maxStone,
             boneyardCount: this.boneyard ? this.boneyard.length : 0,
             mexicanTrain: this.mexicanTrain || [],
-            hands: this.hands, // Handen blijven behouden voor de updates
+            hands: this.hands, 
             currentTurn: this.currentTurn,
             started: this.started,
             startNumber: this.startNumber,
@@ -176,6 +176,7 @@ class Game {
             requiredDouble: this.requiredDouble
         };
     }
+
 }
 
 module.exports = Game;
