@@ -1,8 +1,8 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const Game = require('./models/game');
-const roomManager = require('./rooms/roomManager');
+const Game = require('./src/models/game');
+const roomManager = require('./src/rooms/roomManager');
 
 const app = express();
 const server = http.createServer(app);
