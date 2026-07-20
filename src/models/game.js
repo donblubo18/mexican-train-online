@@ -1,5 +1,6 @@
 const { generateDeck } = require('./domino');
 const { getStonesPerPlayer } = require('../config/gameConfig');
+const { validateAndOrient } = require('./train');
 
 class Game {
     constructor() {
@@ -20,17 +21,14 @@ class Game {
 
     addPlayer(id, name) {
         if (this.started) return { error: 'Spel al begonnen!' };
-        if (this.players.length >= 8) return { error: 'Spel is vol!' };
-        
+        if (this.players.length >= 8) return { error: 'Spel is vol.' };
         this.players.push({ id, name, isOpen: false, train: [], totalScore: 0 });
         return { success: true };
     }
 
     addSpectator(id) {
-        const isPlayer = this.players.some(p => p.id === id);
-        if (isPlayer) return { error: 'Je bent al een actieve speler!' };
-        
-        const specName = `Kijker ${this.spectators.length + 1}`;
+        if (this.players.some(p => p.id === id)) return { error: 'Je bent al speler!' };
+        const specName = "Kijker " + (this.spectators.length + 1);
         this.spectators.push({ id, name: specName });
         return { success: true };
     }
@@ -48,6 +46,7 @@ class Game {
         this.currentRound = 1;
         this.gameOver = false;
         this.started = true;
+        this.spectators = this.spectators || [];
         this.players.forEach(p => p.totalScore = 0);
         this.initRound();
     }
@@ -59,45 +58,96 @@ class Game {
         this.hasDrawn = false;
         this.requiredDouble = { active: false, value: null, targetId: null };
 
-        // Filter de start-dubbelsteen uit de pot
         this.boneyard = this.boneyard.filter(s => !(s[0] === this.startNumber && s[1] === this.startNumber));
-
-        const stonesPerPlayer = getStonesPerPlayer(this.maxStone, this.players.length);
+        const stones = getStonesPerPlayer(this.maxStone, this.players.length);
 
         this.players.forEach(p => {
-            this.hands[p.id] = this.boneyard.splice(0, stonesPerPlayer);
+            this.hands[p.id] = this.boneyard.splice(0, stones);
             p.train = [];
             p.isOpen = false;
         });
     }
 
-    drawStone(playerId) {
-        const activePlayer = this.players[this.currentTurn];
-        if (!activePlayer || activePlayer.id !== playerId || this.hasDrawn) return false;
-
-        if (this.boneyard.length > 0) {
-            this.hands[playerId].push(this.boneyard.pop());
-        }
+    drawStone(id) {
+        if (this.players[this.currentTurn].id !== id || this.hasDrawn) return false;
+        if (this.boneyard.length > 0) this.hands[id].push(this.boneyard.pop());
         this.hasDrawn = true;
         return true;
     }
 
-    passTurn(playerId) {
-        const activePlayer = this.players[this.currentTurn];
-        if (!activePlayer || activePlayer.id !== playerId || !this.hasDrawn) return false;
-
-        activePlayer.isOpen = true;
+    passTurn(id) {
+        if (this.players[this.currentTurn].id !== id || !this.hasDrawn) return false;
+        this.players.find(p => p.id === id).isOpen = true;
         this.hasDrawn = false;
         this.currentTurn = (this.currentTurn + 1) % this.players.length;
         return true;
     }
 
-    getState() {
+    playStone(id, stoneIndex, targetId) {
+        if (this.players[this.currentTurn].id !== id) return { error: 'Niet jouw beurt!' };
+        const hand = this.hands[id];
+        let stone = hand ? hand[stoneIndex] : null;
+        if (!stone) return { error: 'Steen bestaat niet.' };
+
+        if (this.requiredDouble.active && targetId !== this.requiredDouble.targetId) {
+            return { error: 'Verplicht op de rode dubbelsteen!' };
+        }
+
+        let targetTrain = targetId === 'mexican' ? this.mexicanTrain : this.players.find(p => p.id === targetId)?.train;
+        if (!targetTrain) return { error: 'Trein niet gevonden.' };
+        if (targetId !== 'mexican' && targetId !== id && !this.players.find(p => p.id === targetId).isOpen) {
+            return { error: 'Trein is gesloten!' };
+        }
+
+        const oriented = validateAndOrient(stone, targetTrain, this.startNumber);
+        if (!oriented) return { error: 'Steen sluit niet aan.' };
+
+        targetTrain.push(oriented);
+        hand.splice(stoneIndex, 1);
+
+        if (id === targetId) this.players.find(p => p.id === id).isOpen = false;
+
+        if (hand.length === 0) {
+            this.players.forEach(p => {
+                const pHand = this.hands[p.id] || [];
+                p.totalScore += pHand.reduce((sum, s) => sum + s[0] + s[1], 0);
+            });
+            if (this.startNumber > 0) {
+                this.startNumber -= 1; this.currentRound += 1; this.initRound();
+                return { roundEnded: true, winner: this.players[this.currentTurn].name, nextRoundReady: true, game: this };
+            } else {
+                this.started = false; this.gameOver = true;
+                const sorted = [...this.players].sort((a,b) => a.totalScore - b.totalScore);
+                return { roundEnded: true, winner: this.players[this.currentTurn].name, nextRoundReady: false, champion: sorted[0].name, game: this };
+            }
+        }
+
+        if (oriented[0] === oriented[1]) {
+            this.requiredDouble = { active: true, value: oriented, targetId: targetId };
+            this.hasDrawn = false;
+        } else {
+            this.requiredDouble = { active: false, value: null, targetId: null };
+            this.hasDrawn = false;
+            this.currentTurn = (this.currentTurn + 1) % this.players.length;
+        }
+        return { success: true };
+    }
+
+    reorderHand(id, from, to) {
+        const hand = this.hands[id];
+        if (!hand) return;
+        const [moved] = hand.splice(from, 1);
+        hand.splice(to, 0, moved);
+    }
+
+    getState() { return this; }
+
+    toPublicState() {
         return {
             players: this.players,
-            spectators: this.spectators,
+            spectators: this.spectators || [],
             maxStone: this.maxStone,
-            boneyard: this.boneyard,
+            boneyardCount: this.boneyard ? this.boneyard.length : 0,
             mexicanTrain: this.mexicanTrain,
             hands: this.hands,
             currentTurn: this.currentTurn,
