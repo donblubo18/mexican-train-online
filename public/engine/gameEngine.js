@@ -1,7 +1,7 @@
 console.log("Mexican Train: public/engine/gameEngine.js succesvol geladen!");
 
 function createStoneEl(s, isHandCard, idx) {
-    if (!Array.isArray(s)) return document.createElement("div");
+    if (!Array.isArray(s) || s.length < 2) return document.createElement("div");
     const btn = document.createElement(isHandCard ? "button" : "div");
     btn.className = isHandCard ? "domino" : "track-stone";
     if (isHandCard) {
@@ -17,7 +17,8 @@ function createStoneEl(s, isHandCard, idx) {
             if (window.selectedTrainId !== null) executePlay();
         };
     }
-    btn.innerHTML = `<span>${s}</span><div class='line'></div><span>${s}</span>`;
+    // REPARATIE: Cijfers worden nu los van elkaar opgevraagd om de komma te verwijderen!
+    btn.innerHTML = `<span>${s[0]}</span><div class='line'></div><span>${s[1]}</span>`;
     return btn;
 }
 window.createStoneEl = createStoneEl;
@@ -28,6 +29,7 @@ function executePlay() {
     if (document.getElementById('selectedStoneLabel')) document.getElementById('selectedStoneLabel').innerText = "-";
 }
 
+// ... rest van deel 1 blijft behouden tot de netwerkevents ...
 function selectTrain(id) {
     window.selectedTrainId = id;
     if (window.selectedStoneIndex !== null) executePlay();
@@ -60,7 +62,6 @@ if (window.socket) {
             }
         }
 
-        // REPARATIE: Toon de startknop UITSLUITEND als jij de maker (creator) bent van deze kamer!
         const startBtn = document.getElementById('lobbyStartBtn');
         if (startBtn) {
             if (game.creatorId && game.creatorId === window.socket.id) {
@@ -80,7 +81,6 @@ if (window.socket) {
         }
 
         if (!game.started && !game.gameOver) return;
-        // Wissel schermen om naar het actieve speelbord
         if (document.getElementById('lobby')) document.getElementById('lobby').classList.add('hidden');
         if (document.getElementById('board')) document.getElementById('board').classList.remove('hidden');
         
@@ -163,6 +163,8 @@ if (window.socket) {
         const handDiv = document.getElementById('myHand');
         if (handDiv) {
             handDiv.innerHTML = "";
+            handDiv.style = "display:flex !important; flex-direction:row !important; flex-wrap:nowrap !important; overflow-x:auto !important; justify-content:flex-start !important; padding:5px; width:100%; box-sizing:border-box;";
+            
             const isSpectator = game.spectators && game.spectators.some(s => s.id === window.socket.id);
             
             if (isSpectator) {
@@ -178,7 +180,6 @@ if (window.socket) {
         }
     });
 
-    // REPARATIE: Vangt het startsignaal op en forceert de schermwissel direct bij het starten!
     window.socket.on('gameStarted', () => {
         if (document.getElementById('lobby')) document.getElementById('lobby').classList.add('hidden');
         if (document.getElementById('board')) document.getElementById('board').classList.remove('hidden');
