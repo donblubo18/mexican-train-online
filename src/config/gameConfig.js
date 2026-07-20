@@ -1,20 +1,20 @@
-module.exports = {
-    DEFAULT_MAX_STONE: 12,
-    MIN_BONEYARD_RESERVE: 25,
-    MAX_PLAYERS: 8,
-    
-    // Officiële toernooiregels voor stenenverdeling per spelersaantal
-    getInitialStonesCount: (maxStone, numPlayers) => {
-        if (maxStone === 12) {
-            if (numPlayers <= 4) return 15;
-            if (numPlayers <= 6) return 12;
-            return 11;
-        } else if (maxStone === 15) {
-            if (numPlayers <= 4) return 19;
-            if (numPlayers <= 6) return 15;
-            return 13;
-        }
-        // Dynamische fallback voor afwijkende sets (bijv. dubbel 9 of 18)
-        return 10;
+function getStonesPerPlayer(maxStone, numPlayers) {
+    let stones = 11;
+
+    if (maxStone === 12) {
+        if (numPlayers >= 2 && numPlayers <= 4) stones = 15;
+        else if (numPlayers >= 5 && numPlayers <= 6) stones = 12;
+        else stones = 11;
+    } else if (maxStone === 15) {
+        if (numPlayers >= 2 && numPlayers <= 4) stones = 19;
+        else if (numPlayers >= 5 && numPlayers <= 6) stones = 15;
+        else stones = 13;
+    } else {
+        stones = Math.floor((maxStone * 6 - 25) / numPlayers);
+        if (stones > 20) stones = 20;
+        if (stones < 5) stones = 5;
     }
-};
+    return stones;
+}
+
+module.exports = { getStonesPerPlayer };
