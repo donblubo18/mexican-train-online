@@ -1,22 +1,14 @@
-class Train {
-    constructor(ownerId, isMexican = false) {
-        this.ownerId = ownerId;
-        this.isMexican = isMexican;
-        this.stones = [];
-    }
-
-    getTail(startNumber) {
-        if (this.stones.length === 0) return startNumber;
-        const lastStone = this.stones[this.stones.length - 1];
-        return lastStone[1]; // Het openstaande eindcijfer van de laatst gelegde steen
-    }
-
-    addStone(orientedStone) {
-        this.stones.push(orientedStone);
-    }
-
-    clear() {
-        this.stones = [];
-    }
+function getTail(train, startNumber) {
+    if (!train || train.length === 0) return startNumber;
+    const lastStone = train[train.length - 1];
+    return lastStone[1]; 
 }
-module.exports = Train;
+
+function validateAndOrient(stone, train, startNumber) {
+    const tail = getTail(train, startNumber);
+    if (stone[0] === tail) return [stone[0], stone[1]];
+    if (stone[1] === tail) return [stone[1], stone[0]];
+    return null;
+}
+
+module.exports = { getTail, validateAndOrient };
