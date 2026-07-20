@@ -23,11 +23,18 @@ function unlockAudio() {
     });
 }
 
+// REPARATIE: Stuurt de spelersnaam mee zodat je DIRECT in je eigen kamer belandt!
 function createNewRoom() {
+    const nameInp = document.getElementById('nameInp');
+    const playerName = nameInp ? nameInp.value.trim() : "";
+    if (!playerName) return alert("Vul eerst je spelersnaam in bovenin voordat je een kamer aanmaakt!");
+
     const roomInp = document.getElementById('newRoomInp');
     const roomName = roomInp ? roomInp.value.trim() : "";
+    
     if (roomName) {
-        socket.emit('createRoom', roomName);
+        unlockAudio(); // Activeer audio-rechten meteen bij de klik
+        socket.emit('createRoom', { roomName, playerName });
         roomInp.value = "";
     } else {
         alert("Vul een naam in voor de nieuwe kamer!");
@@ -59,7 +66,6 @@ function start() {
 function draw() { socket.emit('drawStone'); }
 function pass() { socket.emit('passTurn'); }
 
-// Ontvang live kamer updates voor het startscherm
 socket.on('roomListUpdate', (rooms) => {
     const container = document.getElementById('roomListContainer');
     if (!container) return;
@@ -71,7 +77,6 @@ socket.on('roomListUpdate', (rooms) => {
 
     container.innerHTML = rooms.map(r => {
         const statusText = r.started ? `<span style="color:#f87171; font-weight:bold;">⚠️ Bezig</span>` : `<span style="color:#4ade80; font-weight:bold;">⏳ Lobby</span>`;
-        
         return `<div class="room-box">
             <div class="room-info">
                 <strong>Kamer: ${r.name}</strong> (${statusText})<br>
@@ -85,7 +90,6 @@ socket.on('roomListUpdate', (rooms) => {
     }).join('');
 });
 
-// REPARATIE: Maakt de wachtruimte-sectie én de startknop direct zichtbaar na een succesvolle join
 socket.on('joinSuccess', (roomName) => {
     sessionStorage.setItem('mexicanTrainJoined', 'true');
     
@@ -98,7 +102,6 @@ socket.on('joinSuccess', (roomName) => {
     if (document.getElementById('nameInp')) document.getElementById('nameInp').disabled = true;
 });
 
-// Deel variabelen met de browser engine via het window-object
 window.audioTurn = audioTurn;
 window.audioTrainOpen = audioTrainOpen;
 window.audioKnock = audioKnock;
