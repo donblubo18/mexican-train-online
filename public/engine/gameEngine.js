@@ -62,6 +62,17 @@ if (window.socket) {
             }
         }
 
+        // REPARATIE: Toon de startknop UITSLUITEND als jij de maker (creator) bent van deze kamer!
+        const startBtn = document.getElementById('lobbyStartBtn');
+        if (startBtn) {
+            const amICreator = game.creatorId === window.socket.id;
+            if (amICreator) {
+                startBtn.classList.remove('hidden'); // Wel zichtbaar voor de maker
+            } else {
+                startBtn.classList.add('hidden');    // Onzichtbaar voor alle andere spelers
+            }
+        }
+
         ["lobbyJoinBtn", "lobbyStartBtn", "lobbySpectateBtn"].forEach(id => {
             const btn = document.getElementById(id);
             if (btn) btn.disabled = game.started;
@@ -81,7 +92,7 @@ if (window.socket) {
         if (document.getElementById('centerStone')) document.getElementById('centerStone').innerText = game.startNumber + '|' + game.startNumber;
         if (document.getElementById('boneyardCount')) document.getElementById('boneyardCount').innerText = game.boneyardCount || 0;
 
-        // 2. BOVENSTE STATUSBALK (REPARATIE: p.handCount correct uitgelezen en weergegeven!)
+        // 2. Scorebalk bovenaan
         const headerRow = document.getElementById('playerHeaderRow');
         if (headerRow) {
             headerRow.innerHTML = game.players.map((p, idx) => {
@@ -159,10 +170,12 @@ if (window.socket) {
             }
         }
 
-        // 6. Eigen hand onderaan renderen (Zonder afknellen, reageert direct op de cgw-krimp)
+        // 6. Eigen hand onderaan renderen
         const handDiv = document.getElementById('myHand');
         if (handDiv) {
             handDiv.innerHTML = "";
+            handDiv.style = "display:flex !important; flex-direction:row !important; flex-wrap:nowrap !important; overflow-x:auto !important; justify-content:flex-start !important; padding:5px; width:100%; box-sizing:border-box;";
+            
             const isSpectator = game.spectators && game.spectators.some(s => s.id === window.socket.id);
             
             if (isSpectator) {
@@ -177,15 +190,13 @@ if (window.socket) {
             }
         }
     });
-
     // Luisteraar voor einde ronde of einde wedstrijd
     window.socket.on('roundEnded', (data) => {
-        alert(data.nextRoundReady ? `Ronde voorbij! ${data.winner} heeft uitgespeeld.\n\nVolgende ronde met Dubbel ${data.game.startNumber}.` : `FINALE AFGELOPEN!\n\n🏆 WINNAAR: ${data.champion}!`);
-        if (!data.nextRoundReady) {
-            sessionStorage.removeItem('mexicanTrainJoined');
-            if (document.getElementById('board')) document.getElementById('board').classList.add('hidden');
-            if (document.getElementById('lobby')) document.getElementById('lobby').classList.remove('hidden');
-        }
-        if (data.game) window.socket.emit('updateGame', data.game);
+        alert(data.nextRoundReady ? Ronde voorbij! ${data.winner} heeft uitgespeeld.\n\nVolgende ronde met Dubbel ${data.game.startNumber}. : FINALE AFGELOPEN!\n\n🏆 WINNAAR: ${data.champion}!);
+    if (!data.nextRoundReady) {sessionStorage.removeItem('mexicanTrainJoined');
+        if (document.getElementById('board')) document.getElementById('board').classList.add('hidden');
+        if (document.getElementById('lobby')) document.getElementById('lobby').classList.remove('hidden');
+    }
+    if (data.game) window.socket.emit('updateGame', data.game);
     });
 }
