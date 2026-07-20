@@ -34,10 +34,11 @@
 
         #doubleWarningBanner { background-color: #dc2626; color: white; font-weight: bold; padding: 8px; text-align: center; font-size: 13px; flex-shrink: 0; border-bottom: 4px solid #000000; }
 
-        main { flex: 1; background-color: #1e293b; overflow-x: auto; overflow-y: hidden; min-height: 0; width: 100%; display: flex; }
-        #tracksMasterContainer, #playerTracksContainer { height: 100%; display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: stretch; }
+        /* REPARATIE: overflow-y op auto gezet zodat treinen binnen het middenveld omlaag kunnen scrollen! */
+        main { flex: 1; background-color: #1e293b; overflow-x: auto; overflow-y: auto; min-height: 0; width: 100%; display: flex; }
+        #tracksMasterContainer, #playerTracksContainer { height: auto; min-height: 100%; display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: stretch; }
         
-        .train-column { display: flex; flex-direction: column; min-width: 160px; max-width: 160px; height: 100%; background-color: #0f172a; border-right: 4px solid #000000; box-sizing: border-box; cursor: pointer; flex-shrink: 0; }
+        .train-column { display: flex; flex-direction: column; min-width: 160px; max-width: 160px; min-height: 100%; background-color: #0f172a; border-right: 4px solid #000000; box-sizing: border-box; cursor: pointer; flex-shrink: 0; }
         .train-column.double-highlight { background-color: rgba(220, 38, 38, 0.1); border-left: 2px solid #dc2626; }
         .column-header { text-align: center; border-bottom: 4px solid #000000; padding: 12px 8px; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; background-color: #0f172a; }
         .column-header .title { font-weight: bold; color: #e2e8f0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 140px; }
@@ -47,7 +48,8 @@
         .column-header .status-badge.open { background-color: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
         .column-header .bounce-badge { font-size: 10px; background-color: #f97316; color: #0f172a; padding: 1px 6px; border-radius: 4px; font-weight: bold; margin-top: 2px; }
 
-        .stones-scroll-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px; min-height: 0; }
+        /* Stenen lopen hier onbeperkt naar onderen door */
+        .stones-scroll-area { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 4px; }
         .track-stone { background: #ffffff; color: #111111; padding: 6px; border-radius: 6px; font-size: 16px; font-weight: bold; border: 2px solid #475569; text-align: center; width: 42px; height: 65px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.2); flex-shrink: 0; box-sizing: border-box; }
         .track-stone .line { width: 100%; border-top: 2px solid #94a3b8; margin: 3px 0; }
 
@@ -66,7 +68,6 @@
     </style>
 </head>
 <body>
-    <!-- LOBBY SCREEN -->
     <div id="lobby">
         <h1>🚂 MEXICAN TRAIN</h1>
         <div class="form-group">
@@ -112,7 +113,7 @@
                         <div class="title" style="color: #34d399;">🚂 Mexican Train</div>
                         <div class="status-badge" style="background-color: #064e3b; color: #6ee7b7; border: 1px solid #047857;">ALTIJD OPEN</div>
                     </div>
-                    <div id="mexicanTrack" class="stones-scroll-area no-scrollbar"></div>
+                    <div id="mexicanTrack" class="stones-scroll-area"></div>
                 </div>
                 <div id="playerTracksContainer"></div>
             </div>
