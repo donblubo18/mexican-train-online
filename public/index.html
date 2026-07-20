@@ -55,20 +55,20 @@
         .action-buttons button:disabled { opacity: 0.2; cursor: not-allowed; }
 
         #myHand { 
-                    width: 100% !important; 
-                    max-width: 100% !important;
-                    display: flex !important; 
-                    flex-direction: row !important; 
-                    flex-wrap: nowrap !important; 
-                    /* Verbergt de scrollbalk en verdeelt de ruimte */
-                    overflow-x: hidden !important; 
-                    justify-content: center !important; 
-                    align-items: center !important;
-                    gap: 6px !important; 
-                    min-height: 95px !important; 
-                    padding: 8px !important;
-                    box-sizing: border-box !important;
-                }
+            width: 100% !important; 
+            max-width: 100% !important;
+            display: flex !important; 
+            flex-direction: row !important; 
+            flex-wrap: nowrap !important; 
+            overflow: hidden !important; 
+            justify-content: center !important; 
+            align-items: center !important;
+            gap: 4px !important; 
+            min-height: 95px !important; 
+            padding: 8px !important;
+            box-sizing: border-box !important;
+            container-type: inline-size;
+        }
         .domino { 
             background: #fefefe; 
             color: #111111; 
@@ -76,21 +76,26 @@
             border-radius: 6px; 
             border: 2px solid #cbd5e1; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.2); 
-            /* Gecorrigeerde flex-shrink & basis: */
             width: 52px !important; 
             max-width: 52px !important;
-            min-width: 25px !important; /* Hoe ver de steen minimaal mag krimpen */
+            /* Laat de steen oneindig ver krimpen zodat 22+ stenen ALTIJD op 1 regel passen */
+            min-width: 10px !important; 
             height: 80px !important; 
             display: flex !important; 
             flex-direction: column !important; 
             align-items: center !important; 
             justify-content: center !important; 
-            font-size: 18px; 
             cursor: grab; 
-            /* Toont vloeibare krimp: mag krimpen (1), mag niet groter groeien (0) */
-            flex: 0 1 auto !important; 
+            flex: 1 1 auto !important; 
             padding: 0; 
             box-sizing: border-box !important;
+            overflow: hidden;
+        }
+
+        /* Zorgt dat de cijfers op de domino's automatisch kleiner worden als de steen krimpt */
+        .domino span {
+            font-size: min(18px, 3.5cqw) !important;
+            line-height: 1 !important;
         }
         .domino .line { width: 100%; border-top: 2px solid #64748b; margin: 4px 0; }
     </style>
